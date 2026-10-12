@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { buildLinks } from '@/modules/build-info';
 
-const { attestationsUrl, buildRunUrl, commitUrl, repositoryUrl, shortSha } = buildLinks;
+const { attestationsUrl, buildRunUrl, commitUrl, releaseUrl, repositoryUrl, shortSha, version } = buildLinks;
 </script>
 
 <template>
@@ -22,6 +22,16 @@ const { attestationsUrl, buildRunUrl, commitUrl, repositoryUrl, shortSha } = bui
           class="text-rui-link"
         >
           Source code (AGPL-3.0)
+        </a>
+        <a
+          v-if="releaseUrl"
+          :href="releaseUrl"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="text-rui-link font-mono"
+          data-testid="build-version"
+        >
+          {{ version }}
         </a>
         <a
           v-if="commitUrl"
