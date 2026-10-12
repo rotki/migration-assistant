@@ -7,6 +7,8 @@ on:
     branches:
       - main
   pull_request:
+    # `edited` re-checks the title, which a squash merge commits.
+    types: [opened, synchronize, reopened, edited]
     branches:
       - main
 
@@ -17,6 +19,49 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  commit-lint:
+    name: commit-lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout 🛎
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+
+      - name: Setup node env 🏗
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          cache: pnpm
+          node-version-file: .nvmrc
+
+      - name: Install dependencies 👨🏻‍💻
+        run: pnpm install --frozen-lockfile
+
+      - name: Validate pushed commit
+        if: github.event_name == 'push'
+        run: pnpm exec commitlint --from HEAD~1 --to HEAD --verbose
+
+      - name: Validate pull request commits
+        if: github.event_name == 'pull_request'
+        run: pnpm exec commitlint --from "${BASE_SHA}" --to "${HEAD_SHA}" --verbose
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+
+      # A squash merge commits the pull request title, so it has to pass too.
+      - name: Validate pull request title
+        if: github.event_name == 'pull_request'
+        run: printf '%s\n' "${PR_TITLE}" | pnpm exec commitlint --verbose
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+
   check-typos:
     name: check-typos
     runs-on: ubuntu-latest
@@ -94,3 +139,37 @@ jobs:
 
       - name: Build
         run: pnpm run build
+
+  # Holds the deployed build to the "nothing leaves your browser" claim.
+  e2e:
+    name: e2e
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout 🛎
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+
+      - name: Setup node env 🏗
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          cache: pnpm
+          node-version-file: .nvmrc
+
+      - name: Install dependencies 👨🏻‍💻
+        run: pnpm install --frozen-lockfile
+
+      - name: Install browsers
+        run: pnpm exec playwright install --with-deps chromium firefox
+
+      - name: Build
+        run: pnpm run build
+
+      - name: Privacy checks
+        run: pnpm run test:e2e
