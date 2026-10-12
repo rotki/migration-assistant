@@ -1,0 +1,55 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    ":dependencyDashboard",
+    ":dependencyDashboardApproval",
+    ":pinAllExceptPeerDependencies",
+    "helpers:pinGitHubActionDigests"
+  ],
+  "description": "Mirror the pnpm-workspace.yaml minimumReleaseAge: 10080 (7 days) cooldown so the dashboard does not surface updates that a local install would reject.",
+  "minimumReleaseAge": "7 days",
+  "packageRules": [
+    {
+      "description": "First-party packages, exempt from the cooldown like in pnpm-workspace.yaml",
+      "matchPackageNames": ["@rotki/**"],
+      "minimumReleaseAge": "0 days"
+    },
+    {
+      "allowedVersions": "/^(24)\\./",
+      "groupName": "Node.js",
+      "matchPackageNames": ["@types/node", "node"]
+    },
+    {
+      "allowedVersions": "/^(12)\\./",
+      "matchPackageNames": ["pnpm"]
+    },
+    {
+      "description": "vue-tsc needs the TypeScript compiler API, which the native TypeScript 7 port does not ship yet",
+      "allowedVersions": "<7",
+      "matchPackageNames": ["typescript"]
+    },
+    {
+      "description": "vite-ssg renders head tags through @unhead/vue 2, a second major would not be picked up",
+      "allowedVersions": "<3",
+      "matchPackageNames": ["@unhead/vue"]
+    },
+    {
+      "description": "Kept on the version @rotki/ui-library pins, so the bundle carries one copy",
+      "matchPackageNames": ["@vueuse/core"],
+      "enabled": false
+    },
+    {
+      "groupName": "tailwindcss",
+      "matchPackageNames": ["tailwindcss", "@tailwindcss/vite"]
+    },
+    {
+      "groupName": "vitest monorepo",
+      "matchPackageNames": ["vitest", "@vitest/coverage-v8"]
+    },
+    {
+      "groupName": "vue monorepo",
+      "matchPackageNames": ["vue", "vue-tsc"]
+    }
+  ]
+}
