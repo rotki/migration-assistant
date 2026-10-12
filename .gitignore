@@ -2,6 +2,8 @@ node_modules
 dist
 .vite-ssg-temp
 coverage
+test-results
+playwright-report
 *.local
 .DS_Store
 .idea
