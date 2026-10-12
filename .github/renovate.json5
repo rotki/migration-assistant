@@ -8,11 +8,12 @@
     "helpers:pinGitHubActionDigests"
   ],
   "description": "Mirror the pnpm-workspace.yaml minimumReleaseAge: 10080 (7 days) cooldown so the dashboard does not surface updates that a local install would reject.",
+  "dependencyDashboardAutoclose": false,
   "minimumReleaseAge": "7 days",
   "packageRules": [
     {
       "description": "First-party packages, exempt from the cooldown like in pnpm-workspace.yaml",
-      "matchPackageNames": ["@rotki/**"],
+      "matchPackageNames": ["@rotki/ui-library", "@rotki/eslint-config", "@rotki/eslint-plugin"],
       "minimumReleaseAge": "0 days"
     },
     {

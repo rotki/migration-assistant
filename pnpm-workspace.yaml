@@ -1,8 +1,12 @@
 blockExoticSubdeps: true
 minimumReleaseAge: 10080
 minimumReleaseAgeExcludePrune: true
+# First-party rotki packages: the maturity gate guards against third-party
+# supply-chain surprises, not against our own releases.
 minimumReleaseAgeExclude:
-  - '@rotki/*'
+  - '@rotki/ui-library'
+  - '@rotki/eslint-config'
+  - '@rotki/eslint-plugin'
 trustPolicy: no-downgrade
 shellEmulator: true
 strictDepBuilds: true
