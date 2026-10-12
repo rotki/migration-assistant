@@ -63,6 +63,8 @@ export default defineConfig({
     'import.meta.env.VITE_REPOSITORY_URL': JSON.stringify(REPOSITORY_URL),
     'import.meta.env.VITE_COMMIT_SHA': JSON.stringify(commitSha()),
     'import.meta.env.VITE_BUILD_RUN_URL': JSON.stringify(buildRunUrl()),
+    // Set by the release workflow, as v0.2.0; empty for any other build.
+    'import.meta.env.VITE_APP_VERSION': JSON.stringify(process.env.APP_VERSION ?? ''),
   },
   resolve: {
     alias: {

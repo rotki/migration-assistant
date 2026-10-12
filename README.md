@@ -11,19 +11,26 @@ Live at <https://rotki.github.io/migration-assistant/>.
 
 ## Verifying a deployment
 
-The footer of the live page links the commit it was built from and the GitHub Actions run
-that built it. Every deployed HTML, JavaScript and CSS file carries a build provenance
-attestation, which you can check against this repository:
+The footer of the live page links the release it belongs to, the commit it was built from
+and the GitHub Actions run that built it. Every deployed HTML, JavaScript and CSS file, and
+the site tarball attached to each release, carries a build provenance attestation, which you
+can check against this repository:
 
 ```bash
 gh attestation verify index.html --repo rotki/migration-assistant
+gh attestation verify migration-assistant-v0.1.0.tar.gz --repo rotki/migration-assistant
 ```
 
 The deployment ships source maps, so the browser's developer tools show the deployed code as
 the source files in this repository.
 
-Deployments run only from `main`, and each one waits for a maintainer's approval in the
-`github-pages` environment.
+## Releasing
+
+The site is deployed only by releases. Run the **release** workflow from the Actions tab on
+`main` with the version, such as `0.2.0`. It builds that commit, waits for a maintainer to
+approve the deployment in the `github-pages` environment, deploys it, then tags the commit
+and publishes release notes generated from the conventional commits since the last release,
+with the deployed site attached.
 
 ## Development
 
