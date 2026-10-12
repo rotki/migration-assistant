@@ -1,0 +1,67 @@
+{
+  "name": "@rotki/migration-assistant",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@12.6.0",
+  "description": "Convert exchange CSV history to rotki's import format, entirely in your browser",
+  "type": "module",
+  "license": "AGPL-3.0",
+  "homepage": "https://rotki.github.io/migration-assistant/",
+  "bugs": {
+    "url": "https://github.com/rotki/migration-assistant/issues"
+  },
+  "repository": "https://github.com/rotki/migration-assistant",
+  "author": "Rotki Solutions GmbH <info@rotki.com>",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite-ssg build",
+    "preview": "vite preview",
+    "typecheck": "vue-tsc --noEmit",
+    "test": "vitest",
+    "test:run": "vitest run",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "prepare": "husky"
+  },
+  "dependencies": {
+    "@rotki/ui-library": "3.0.0-beta.1",
+    "@unhead/vue": "2.1.17",
+    "@vueuse/core": "14.4.0",
+    "dayjs": "1.11.23",
+    "papaparse": "5.7.0",
+    "vue": "3.5.43",
+    "vue-router": "5.3.1"
+  },
+  "devDependencies": {
+    "@fontsource-variable/geist-mono": "5.3.0",
+    "@fontsource-variable/inter": "5.3.0",
+    "@rotki/eslint-config": "8.3.0",
+    "@rotki/eslint-plugin": "1.8.0",
+    "@tailwindcss/vite": "4.3.3",
+    "@types/node": "^24.19.1",
+    "@types/papaparse": "5.5.2",
+    "@vitejs/plugin-vue": "6.0.9",
+    "@vue/test-utils": "2.5.1",
+    "eslint": "10.12.0",
+    "eslint-plugin-slop": "0.1.3",
+    "eslint-plugin-sonarjs": "4.2.2",
+    "eslint-plugin-tsdoc": "0.5.4",
+    "fast-glob": "3.3.3",
+    "happy-dom": "20.14.5",
+    "husky": "9.1.7",
+    "lint-staged": "17.6.0",
+    "tailwindcss": "4.3.3",
+    "typescript": "6.0.3",
+    "vite": "8.3.2",
+    "vite-ssg": "28.3.0",
+    "vitest": "5.0.3",
+    "vue-tsc": "3.3.12"
+  },
+  "engines": {
+    "node": ">=24 <25",
+    "pnpm": ">=12 <13"
+  },
+  "lint-staged": {
+    "*.{js,mjs,ts,vue,json,yml,yaml,md}": "eslint"
+  }
+}

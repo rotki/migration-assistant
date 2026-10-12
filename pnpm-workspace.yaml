@@ -1,0 +1,11 @@
+blockExoticSubdeps: true
+minimumReleaseAge: 10080
+minimumReleaseAgeExcludePrune: true
+minimumReleaseAgeExclude:
+  - '@rotki/*'
+trustPolicy: no-downgrade
+shellEmulator: true
+strictDepBuilds: true
+saveExact: true
+allowBuilds:
+  esbuild: true

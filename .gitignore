@@ -1,0 +1,9 @@
+node_modules
+dist
+.vite-ssg-temp
+coverage
+*.local
+.DS_Store
+.idea
+.vscode/*
+!.vscode/extensions.json
