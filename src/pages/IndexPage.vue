@@ -24,7 +24,7 @@ const features: Feature[] = [
   {
     icon: 'lu-hard-drive',
     title: 'Large files welcome',
-    description: 'Rows are converted as they stream from disk, so a file of several gigabytes needs no more memory than a small one.',
+    description: 'Rows stream from your disk and the result goes back to it, so memory does not grow with the file. A 1 GB export converts in under a minute and a half.',
   },
 ];
 </script>
@@ -37,9 +37,9 @@ const features: Feature[] = [
       </h1>
       <p class="text-lg text-rui-text-secondary max-w-3xl">
         Turn a CSV export from any exchange into rotki's generic trades or events format,
-        ready for <span class="font-medium text-rui-text">Import data</span> in rotki.
+        ready for <span class="font-medium text-rui-text">Import Data → Custom Import</span> in rotki.
       </p>
-      <div>
+      <div class="w-fit">
         <RouterLink
           #default="{ href, navigate }"
           to="/convert"
@@ -91,8 +91,9 @@ const features: Feature[] = [
         Open your browser's developer tools on the Network tab while you convert a file:
         no request goes out. The page ships a content security policy with
         <code class="font-mono text-sm">connect-src 'none'</code>, so the browser would block one
-        even if the code tried. The footer links the exact commit and the build that produced
-        this deployment.
+        even if the code tried. The footer links the release, the exact commit and the build
+        that produced this deployment, and each release carries a copy of the site with a build
+        attestation you can verify.
       </p>
     </section>
   </div>

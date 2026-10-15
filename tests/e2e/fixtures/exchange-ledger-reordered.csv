@@ -1,0 +1,8 @@
+Exchange transaction history
+User ID;12345
+Remark;Coin;UTC_Time;Change;Operation;Account
+;ETH;05/03/2024 12:30;1,5;Deposit;Spot
+to wallet;ETH;06/03/2024 08:00;-0,25;Withdraw;Spot
+;DOT;07/03/2024 09:15;0,0123;Staking Rewards;Earn
+;USDT;14/03/2024 10:00;-100;Transfer Between Main and Funding Wallet;Spot
+;XYZ;15/03/2024 11:00;5;Airdrop Assets;Spot

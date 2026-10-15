@@ -1,0 +1,231 @@
+import type { ConversionStats } from './convert-stream';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { type EffectScope, effectScope, isProxy, reactive } from 'vue';
+import { RotkiFormat } from '@/modules/rotki-format';
+import { type FakeStorage, installFakeStorage } from '@/test-utils/storage';
+import { type ConversionMessage, readStartConversion } from './protocol';
+import { type Recipe, serializeRecipe } from './recipe';
+import { type Conversion, useConversion } from './use-conversion';
+
+class FakeWorker {
+  static instances: FakeWorker[] = [];
+  readonly posted: unknown[] = [];
+  terminated = false;
+  private readonly listeners = new Map<string, ((event: unknown) => void)[]>();
+
+  constructor() {
+    FakeWorker.instances.push(this);
+  }
+
+  addEventListener(type: string, listener: (event: unknown) => void): void {
+    this.listeners.set(type, [...(this.listeners.get(type) ?? []), listener]);
+  }
+
+  postMessage(message: unknown): void {
+    this.posted.push(message);
+  }
+
+  terminate(): void {
+    this.terminated = true;
+  }
+
+  reply(message: ConversionMessage): void {
+    for (const listener of this.listeners.get('message') ?? [])
+      listener({ data: message });
+  }
+
+  crash(message: string): void {
+    for (const listener of this.listeners.get('error') ?? [])
+      listener({ message });
+  }
+}
+
+function lastWorker(): FakeWorker {
+  const worker = FakeWorker.instances.at(-1);
+  if (!worker)
+    throw new Error('No worker was started.');
+  return worker;
+}
+
+const recipe: Recipe = {
+  version: 1,
+  name: '',
+  input: { encoding: 'utf-8', delimiter: ',', headerIndex: 0 },
+  format: RotkiFormat.trades,
+  fields: { Location: { source: { kind: 'constant', value: 'kraken' } } },
+  numbers: { decimalSeparator: '.' },
+  dates: { format: 'iso', timeZone: 'UTC' },
+};
+
+const file = new File(['a,b\n1,2\n'], 'kraken.csv');
+
+function stats(overrides: Partial<ConversionStats> = {}): ConversionStats {
+  return { bytesRead: 8, totalBytes: 8, converted: 1, skipped: 0, rejected: 0, ...overrides };
+}
+
+let storage: FakeStorage;
+let scope: EffectScope;
+let conversion: Conversion;
+let revoked: string[];
+
+/** Finishes the running conversion with these files written. */
+async function finish(converted: string, rejected?: string): Promise<void> {
+  storage.files.set('converted.csv', converted);
+  if (rejected !== undefined)
+    storage.files.set('rejected.csv', rejected);
+  lastWorker().reply({ type: 'done', stats: stats({ rejected: rejected === undefined ? 0 : 1 }) });
+  await vi.waitFor(() => expect(conversion.state.value).not.toBe('running'));
+}
+
+describe('useConversion', () => {
+  beforeEach(() => {
+    FakeWorker.instances = [];
+    vi.stubGlobal('Worker', FakeWorker);
+    storage = installFakeStorage();
+    let urls = 0;
+    revoked = [];
+    vi.spyOn(URL, 'createObjectURL').mockImplementation(() => `blob:${++urls}`);
+    vi.spyOn(URL, 'revokeObjectURL').mockImplementation((url) => {
+      revoked.push(url);
+    });
+    scope = effectScope();
+    const created = scope.run(() => useConversion());
+    if (!created)
+      throw new Error('useConversion returned nothing.');
+    conversion = created;
+  });
+
+  afterEach(() => {
+    scope.stop();
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it('clears earlier output and posts a plain request the worker accepts', async () => {
+    await conversion.start(file, reactive(structuredClone(recipe)));
+    expect(storage.removed).toEqual(['conversions']);
+    expect(conversion.state.value).toBe('running');
+
+    const [request] = lastWorker().posted;
+    const read = readStartConversion(request);
+    expect(read.ok && read.value.recipe).toEqual(recipe);
+    expect(read.ok && isProxy(read.value.recipe)).toBe(false);
+    expect(read.ok && serializeRecipe(read.value.recipe)).toBe(serializeRecipe(recipe));
+  });
+
+  it('follows progress and offers the converted file under its download name', async () => {
+    await conversion.start(file, recipe);
+    lastWorker().reply({ type: 'progress', stats: stats({ bytesRead: 4, converted: 0 }) });
+    expect(conversion.stats.value?.bytesRead).toBe(4);
+
+    await finish('Location\nkraken\n');
+    expect(conversion.state.value).toBe('done');
+    expect(conversion.output.value).toEqual({ name: 'kraken-rotki-trades.csv', url: 'blob:1', size: 16 });
+    expect(conversion.rejected.value).toBeUndefined();
+    expect(lastWorker().terminated).toBe(true);
+  });
+
+  it('offers the rejected rows when there are some', async () => {
+    await conversion.start(file, { ...recipe, name: 'my kraken' });
+    await finish('Location\n', 'a,b,Row,Reason\n');
+    expect(conversion.rejected.value).toEqual({ name: 'my kraken-rejected.csv', url: 'blob:2', size: 15 });
+  });
+
+  it('lists the problems the worker reports, or its message when there are none', async () => {
+    await conversion.start(file, recipe);
+    lastWorker().reply({ type: 'failed', message: 'Recipe problems', problems: ['The file has no column named "Pair".'] });
+    expect(conversion.state.value).toBe('failed');
+    expect(conversion.problems.value).toEqual(['The file has no column named "Pair".']);
+
+    await conversion.start(file, recipe);
+    expect(conversion.problems.value).toEqual([]);
+    lastWorker().reply({ type: 'failed', message: 'Storage refused', problems: [] });
+    expect(conversion.problems.value).toEqual(['Storage refused']);
+  });
+
+  it('fails with the message of a crashed worker and stops it', async () => {
+    await conversion.start(file, recipe);
+    lastWorker().crash('Out of memory');
+    expect(conversion.state.value).toBe('failed');
+    expect(conversion.problems.value).toEqual(['Out of memory']);
+    expect(lastWorker().terminated).toBe(true);
+  });
+
+  it('fails when the converted file cannot be read back', async () => {
+    await conversion.start(file, recipe);
+    lastWorker().reply({ type: 'done', stats: stats() });
+    await vi.waitFor(() => expect(conversion.state.value).toBe('failed'));
+    expect(conversion.problems.value).toEqual(['converted.csv was not found.']);
+  });
+
+  it('still starts when old output cannot be cleared, leaving the worker to explain', async () => {
+    storage.refuse = true;
+    await conversion.start(file, recipe);
+    expect(FakeWorker.instances).toHaveLength(1);
+    expect(conversion.state.value).toBe('running');
+  });
+
+  it('cancels a running conversion', async () => {
+    await conversion.start(file, recipe);
+    conversion.cancel();
+    expect(lastWorker().terminated).toBe(true);
+    expect(conversion.state.value).toBe('idle');
+  });
+
+  it('starts no worker when cancelled while old output is still being cleared', async () => {
+    const starting = conversion.start(file, recipe);
+    conversion.cancel();
+    await starting;
+    expect(FakeWorker.instances).toHaveLength(0);
+    expect(conversion.state.value).toBe('idle');
+  });
+
+  it('stays reset when reset while the finished files are read back', async () => {
+    await conversion.start(file, recipe);
+    storage.files.set('converted.csv', 'Location\n');
+    lastWorker().reply({ type: 'done', stats: stats() });
+    conversion.reset();
+    await vi.waitFor(() => expect(revoked).toEqual(['blob:1']));
+    expect(conversion.state.value).toBe('idle');
+    expect(conversion.output.value).toBeUndefined();
+  });
+
+  it('stops the previous worker when started again', async () => {
+    await conversion.start(file, recipe);
+    const first = lastWorker();
+    await conversion.start(file, recipe);
+    expect(first.terminated).toBe(true);
+    expect(FakeWorker.instances).toHaveLength(2);
+  });
+
+  it('forgets the results and releases their links on reset', async () => {
+    await conversion.start(file, recipe);
+    await finish('Location\n', 'a,b,Row,Reason\n');
+    conversion.reset();
+    expect(revoked).toEqual(['blob:1', 'blob:2']);
+    expect(conversion.state.value).toBe('idle');
+    expect(conversion.output.value).toBeUndefined();
+    expect(conversion.stats.value).toBeUndefined();
+  });
+
+  it('releases the links of the previous result when started again', async () => {
+    await conversion.start(file, recipe);
+    await finish('Location\n');
+    await conversion.start(file, recipe);
+    expect(revoked).toEqual(['blob:1']);
+    expect(conversion.output.value).toBeUndefined();
+  });
+
+  it('stops a running worker when its scope ends', async () => {
+    await conversion.start(file, recipe);
+    scope.stop();
+    expect(lastWorker().terminated).toBe(true);
+  });
+
+  it('releases the links of a finished conversion when its scope ends', async () => {
+    await conversion.start(file, recipe);
+    await finish('Location\n');
+    scope.stop();
+    expect(revoked).toEqual(['blob:1']);
+  });
+});

@@ -1,2 +1,11 @@
 @import 'tailwindcss';
 @import '@rotki/ui-library/tailwind.css';
+
+/* Native scrollbars and form controls follow the theme the library puts on the root. */
+:root {
+  color-scheme: light;
+}
+
+:root.dark {
+  color-scheme: dark;
+}
