@@ -119,6 +119,7 @@
     "heading": "Bring your exchange history into rotki",
     "intro": "Turn a CSV export from any exchange into rotki's generic trades or events format, ready for {menu} in rotki.",
     "intro_menu": "Import Data → Custom Import",
+    "native_importers": "Some exports need no conversion: rotki reads exports from Binance, CoinTracking, Kucoin, Nexo and several other services as they are. Choose your file anyway and the first step tells you when rotki can import it directly.",
     "start": "Start converting",
     "title": "Convert exchange history for rotki",
     "verify": {
@@ -240,6 +241,16 @@
       "statements": "Statements",
       "transaction_history": "Transaction history",
       "where": "Most exchanges put the export under {history}, {statements} or {reports}, as CSV. Pick the full history if the exchange offers a choice."
+    },
+    "native_importer": {
+      "body": "This is the format of rotki's {importer} importer, so it needs no conversion. In rotki, open {location} and choose this file. You can still convert it here if you want to change how it is read.",
+      "import_data": "Import Data",
+      "sections": {
+        "events": "Import events",
+        "trades": "Import trades",
+        "transactions": "Import transactions"
+      },
+      "title": "rotki imports this file directly"
     },
     "settings": {
       "change": "Change",

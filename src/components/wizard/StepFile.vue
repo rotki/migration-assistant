@@ -3,6 +3,7 @@ import type { Message } from '@/modules/convert/messages';
 import { RuiAlert, RuiButton, RuiFileUpload, RuiIcon, RuiMenuSelect } from '@rotki/ui-library';
 import { computed, ref, useTemplateRef, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { findNativeImporter, ImporterSection, type NativeImporter } from '@/modules/convert/native-importers';
 import { parseRecipe } from '@/modules/convert/recipe';
 import { useMessages } from '@/modules/convert/use-messages';
 import { type Delimiter, DELIMITERS, ENCODINGS } from '@/modules/csv/sniff';
@@ -13,7 +14,7 @@ const PREVIEW_RECORDS = 12;
 
 const { t } = useI18n({ useScope: 'global' });
 const { translate } = useMessages();
-const { file, isWholeFile, records, recipe, applyRecipe, loadFile, restart } = useWizard();
+const { file, header, isWholeFile, records, recipe, applyRecipe, loadFile, restart } = useWizard();
 
 const selected = ref<File>();
 const recipeError = ref<Message>();
@@ -45,6 +46,22 @@ const delimiterLabel = computed<string>(() => {
     '|': t('step_file.delimiter.names.pipe'),
   };
   return names[recipe.value.input.delimiter];
+});
+
+const nativeImporter = computed<NativeImporter | undefined>(() => findNativeImporter(header.value, recipe.value.input.headerIndex));
+
+/** Where the importer sits in rotki, as `Import Data → Custom Import → Import events`. */
+const importerLocation = computed<string>(() => {
+  const importer = nativeImporter.value;
+  if (!importer)
+    return '';
+  const sections: Record<ImporterSection, string> = {
+    [ImporterSection.events]: t('step_file.native_importer.sections.events'),
+    [ImporterSection.trades]: t('step_file.native_importer.sections.trades'),
+    [ImporterSection.transactions]: t('step_file.native_importer.sections.transactions'),
+  };
+  const section = importer.section && sections[importer.section];
+  return [t('step_file.native_importer.import_data'), importer.name, section].filter(Boolean).join(' → ');
 });
 
 const sizeLabel = computed<string>(() => {
@@ -177,6 +194,26 @@ async function loadRecipe(event: Event): Promise<void> {
         type="error"
         :description="translate(recipeError)"
       />
+
+      <RuiAlert
+        v-if="nativeImporter"
+        type="info"
+        :title="t('step_file.native_importer.title')"
+        data-testid="native-importer"
+      >
+        <i18n-t
+          keypath="step_file.native_importer.body"
+          tag="span"
+          scope="global"
+        >
+          <template #importer>
+            {{ nativeImporter.name }}
+          </template>
+          <template #location>
+            <span class="font-medium">{{ importerLocation }}</span>
+          </template>
+        </i18n-t>
+      </RuiAlert>
 
       <div
         v-if="showSettings"

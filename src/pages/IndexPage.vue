@@ -52,6 +52,12 @@ const features = computed<Feature[]>(() => [
           <span class="font-medium text-rui-text">{{ t('index_page.intro_menu') }}</span>
         </template>
       </i18n-t>
+      <p
+        class="text-rui-text-secondary max-w-3xl"
+        data-testid="native-importers-note"
+      >
+        {{ t('index_page.native_importers') }}
+      </p>
       <div class="w-fit">
         <RouterLink
           #default="{ href, navigate }"
