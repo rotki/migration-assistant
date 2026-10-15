@@ -54,6 +54,12 @@
     "empty_in_sample": "Empty in the sample",
     "example": "e.g. {example}",
     "example_mapped": "{raw} → {result}",
+    "fallback": {
+      "custom": "The recipe gives this field {count} other source to try when it is empty. | The recipe gives this field {count} other sources to try when it is empty.",
+      "label": "If empty, use",
+      "none": "Nothing",
+      "type_by_side": "When empty, use Deposit for rows that receive and Withdrawal for rows that send"
+    },
     "fixed_label": "Fixed {column}",
     "fixed_placeholder": "Value for every row",
     "help": {
@@ -133,6 +139,7 @@
     "column_empty": "{column} is empty.",
     "fee_without_currency": "Fee \"{value}\" has no Fee Currency.",
     "missing_column": "The file has no column named \"{column}\".",
+    "needs_route": "Say which rows are trades: pick the columns a trade fills.",
     "needs_source": "{column} needs a source column or a fixed value.",
     "no_dates": "The recipe has no valid date format or time zone.",
     "no_decimal_separator": "The recipe has no valid decimal separator.",
@@ -177,11 +184,17 @@
     },
     "failed_title": "The conversion stopped",
     "file": "File",
-    "import_help": "In rotki, open {import_data}, pick {custom_import}, then {import_format}, and choose the downloaded file. The rejected file lists each row with the reason in its last column.",
+    "formats": {
+      "both": "trades and events",
+      "events": "events",
+      "trades": "trades"
+    },
+    "import_help": "In rotki, open {import_data}, pick {custom_import}, then {import_format}, and choose {file}.",
     "import_menu": {
       "custom_import": "Custom Import",
       "import_data": "Import Data",
-      "import_format": "Import {format}"
+      "import_events": "Import events",
+      "import_trades": "Import trades"
     },
     "in_preview": "In the preview",
     "large_file": "A large file converts best in a normal window: private windows keep the result in memory instead of on disk.",
@@ -191,7 +204,8 @@
     },
     "name": {
       "hint": "Downloads as {name}",
-      "label": "Name"
+      "label": "Name",
+      "separator": " and "
     },
     "progress": {
       "label": "Conversion progress",
@@ -199,6 +213,7 @@
     },
     "recipe_note": "Next time this exchange exports, the saved recipe sets every step up for you.",
     "rejected_download": "Rejected rows · {size}",
+    "rejected_help": "The rejected file lists each row with the reason in its last column.",
     "result": {
       "description": "{skipped} skipped, {rejected} rejected.",
       "title": "{count} row converted | {count} rows converted"
@@ -313,12 +328,27 @@
       "asset_and_amount": "Asset and amount",
       "fee": "Fee",
       "note": "Note",
+      "one_side": "Deposits and withdrawals",
       "received": "Received",
       "spent": "Spent",
       "what_happened": "What happened",
       "when_and_where": "When and where"
     },
     "matched_by_name": "Columns are matched by name, so a saved recipe still works when the exchange moves them around.",
+    "route": {
+      "and": " and ",
+      "conditions": {
+        "empty": "{column} is empty",
+        "filled": "{column} has a value",
+        "one_of": "{column} is one of {values}"
+      },
+      "counts": "In the sample: {trades} as trades, {events} as events.",
+      "custom": "The recipe makes a row a trade when {rule}.",
+      "explanation": "A row that fills both columns, as a sent and a received amount, becomes a trade. Any other row becomes a deposit, withdrawal or other event.",
+      "first_column": "A row is a trade when",
+      "second_column": "and also",
+      "title": "Trades and events"
+    },
     "swap": {
       "candidate": "{value} · {rows}",
       "column_label": "Sells are the rows where",
@@ -341,8 +371,10 @@
     "first_rows_of_file": "First row of the file: | First {count} rows of the file:",
     "fix_in": "Fix in {step}",
     "import": {
+      "events_title": "Events rotki will import",
       "nothing": "No row converts yet.",
-      "title": "What rotki will import"
+      "title": "What rotki will import",
+      "trades_title": "Trades rotki will import"
     },
     "incomplete": "The mapping is not complete",
     "rejected": {
@@ -353,6 +385,11 @@
   },
   "step_target": {
     "choices": {
+      "both": {
+        "description": "Each row sends, receives or swaps, as in exports from Koinly, CoinTracker or ZenLedger. Swaps become trades, the rest events.",
+        "example": "Sent 1 ETH, received 3,000 USDC; received 0.01 ETH",
+        "title": "Both, from one file"
+      },
       "events": {
         "description": "Each row moves one asset: deposits, withdrawals, staking rewards, income, losses.",
         "example": "Received 0.01 ETH as a staking reward",
@@ -365,7 +402,7 @@
       }
     },
     "label": "rotki format",
-    "separate_files": "rotki imports trades and events from separate files. If your export mixes both, convert it twice and skip the other kind of row each time.",
+    "separate_files": "rotki imports trades and events from separate files. If your export mixes both, choose Both: you get one file of each to import.",
     "suggested": "Suggested for this file"
   },
   "value_map": {

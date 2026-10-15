@@ -2,13 +2,14 @@ import { describe, expect, it } from 'vitest';
 import { parseCsv } from '@/modules/csv/parser';
 import { RotkiFormat } from '@/modules/rotki-format';
 import { englishTexts } from '@/test-utils/messages';
+import { SIDED_HEADER, sidedRecipe } from '@/test-utils/recipes';
 import { type ConversionStats, convertStream, type TextSink } from './convert-stream';
 import { message, MessageCode, MessageError, type RejectedFileTexts } from './messages';
 import { type Recipe, SKIP_ROW } from './recipe';
 import { RecipeError } from './row-converter';
 
 const recipe: Recipe = {
-  version: 1,
+  version: 2,
   name: 'ledger',
   input: { encoding: 'utf-8', delimiter: ';', headerIndex: 1 },
   format: RotkiFormat.events,
@@ -53,21 +54,31 @@ function collector(): TextSink & { text: () => string } {
   return { write: text => parts.push(text), text: () => parts.join('') };
 }
 
-async function run(input: string, chunkSize: number, options: Partial<Recipe> = {}, texts: RejectedFileTexts = englishTexts()): Promise<{ stats: ConversionStats; output: string; rejected: string; progress: number[] }> {
+interface Run {
+  stats: ConversionStats;
+  /** The events file, which is what the ledger recipe writes. */
+  output: string;
+  trades: string;
+  rejected: string;
+  progress: number[];
+}
+
+async function run(input: string, chunkSize: number, options: Partial<Recipe> = {}, texts: RejectedFileTexts = englishTexts()): Promise<Run> {
   const bytes = new TextEncoder().encode(input);
-  const output = collector();
+  const events = collector();
+  const trades = collector();
   const rejected = collector();
   const progress: number[] = [];
   const stats = await convertStream({
     stream: chunked(bytes, chunkSize),
     totalBytes: bytes.length,
     recipe: { ...recipe, ...options },
-    output,
+    outputs: { [RotkiFormat.events]: events, [RotkiFormat.trades]: trades },
     rejected,
     texts,
     onProgress: update => progress.push(update.bytesRead),
   });
-  return { stats, output: output.text(), rejected: rejected.text(), progress };
+  return { stats, output: events.text(), trades: trades.text(), rejected: rejected.text(), progress };
 }
 
 describe('convertStream', () => {
@@ -100,6 +111,37 @@ describe('convertStream', () => {
 
   it('stops when the file ends before its header', async () => {
     await expect(run('Exported ledger', 64)).rejects.toThrowError(new MessageError(message(MessageCode.noHeader)));
+  });
+
+  it('writes the trades and the events of a both recipe to their own files', async () => {
+    const file = [
+      SIDED_HEADER.join(','),
+      '2024-03-05 12:00,30000,EUR,0.5,BTC,15,EUR,,Buy BTC',
+      '2024-03-06 08:00,,,1.5,ETH,,,,',
+      '2024-03-07 09:00,0.25,ETH,,,,,,To cold storage',
+      '',
+    ].join('\n');
+    const { stats, output, trades } = await run(file, 16, sidedRecipe());
+    expect(stats).toMatchObject({ converted: 3, convertedByFormat: { trades: 1, events: 2 }, rejected: 0 });
+    expect(parseCsv(trades, ',')).toEqual([
+      ['Location', 'Spend Currency', 'Spend Amount', 'Receive Currency', 'Receive Amount', 'Fee', 'Fee Currency', 'Description', 'Timestamp'],
+      ['external', 'EUR', '30000', 'BTC', '0.5', '15', 'EUR', 'Buy BTC', String(Date.UTC(2024, 2, 5, 12))],
+    ]);
+    expect(parseCsv(output, ',').map(row => row.slice(0, 4))).toEqual([
+      ['Type', 'Location', 'Currency', 'Amount'],
+      ['Deposit', 'external', 'ETH', '1.5'],
+      ['Withdrawal', 'external', 'ETH', '0.25'],
+    ]);
+  });
+
+  it('refuses to write a format it got no output for', async () => {
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller): void {
+        controller.close();
+      },
+    });
+    const running = convertStream({ stream, totalBytes: 0, recipe: sidedRecipe(), outputs: { trades: collector() }, rejected: collector(), texts: englishTexts() });
+    await expect(running).rejects.toThrowError('convertStream got no output for the events file.');
   });
 
   it('writes the rejected file in the texts it is given', async () => {

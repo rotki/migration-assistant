@@ -25,6 +25,7 @@ export function createMessages(t: Composer['t']): Messages {
     [MessageCode.unknownType]: params => t('messages.unknown_type', params),
     [MessageCode.feeWithoutCurrency]: params => t('messages.fee_without_currency', params),
     [MessageCode.needsSource]: params => t('messages.needs_source', params),
+    [MessageCode.needsRoute]: () => t('messages.needs_route'),
     [MessageCode.missingColumn]: params => t('messages.missing_column', params),
     [MessageCode.unknownTimeZone]: params => t('messages.unknown_time_zone', params),
     [MessageCode.notJson]: () => t('messages.not_json'),

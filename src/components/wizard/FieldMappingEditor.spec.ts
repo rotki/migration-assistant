@@ -169,3 +169,63 @@ describe('fieldMappingEditor for the event type', () => {
     expect(wrapper.find('[data-testid=value-map-unmapped]').exists()).toBe(true);
   });
 });
+
+const SIDED = [
+  'Date,Sent Amount,Sent Currency,Received Amount,Received Currency,Label',
+  '2024-03-05T12:00:00Z,30000,EUR,0.5,BTC,Buy',
+  '2024-03-06T08:00:00Z,,,1.5,ETH,',
+  '',
+].join('\n');
+
+describe('fieldMappingEditor fallbacks in a both recipe', () => {
+  it('types an empty label by its side, and turns that off', async () => {
+    const { wrapper, wizard } = await editor('Type', SIDED);
+    expect(wizard.recipe.value.format).toBe('both');
+    const bySide = wrapper.find('[data-testid=type-by-side]');
+    expect(bySide.exists()).toBe(true);
+    expect(prop(checkbox(wrapper, 'When empty, use Deposit for rows that receive and Withdrawal for rows that send')!, 'modelValue')).toBe(true);
+
+    checkbox(wrapper, 'When empty, use Deposit for rows that receive and Withdrawal for rows that send')?.vm.$emit('update:modelValue', false);
+    await nextTick();
+    expect(wizard.recipe.value.fields.Type?.fallbacks).toBeUndefined();
+  });
+
+  it('offers the other side when the currency is empty', async () => {
+    const { wrapper, wizard } = await editor('Currency', SIDED);
+    const fallback = labelled(wrapper.findAllComponents(RuiMenuSelect), 'If empty, use');
+    expect(prop(fallback!, 'modelValue')).toBe('Sent Currency');
+
+    fallback?.vm.$emit('update:modelValue', '__none__');
+    await nextTick();
+    expect(wizard.recipe.value.fields.Currency?.fallbacks).toBeUndefined();
+  });
+
+  it('describes fallbacks it cannot edit instead of dropping them', async () => {
+    const { wrapper, wizard } = await editor('Currency', SIDED);
+    wizard.recipe.value.fields.Currency = {
+      source: { kind: 'column', column: 'Received Currency' },
+      fallbacks: [{ when: [{ kind: 'one_of', column: 'Label', values: ['Send'] }], source: { kind: 'column', column: 'Sent Currency' } }],
+    };
+    await nextTick();
+    expect(wrapper.find('[data-testid=custom-fallbacks]').text()).toBe('The recipe gives this field 1 other source to try when it is empty.');
+    expect(wrapper.find('[data-testid=fallback-column]').exists()).toBe(false);
+  });
+
+  it('keeps the fallbacks when the source changes', async () => {
+    const { wrapper, wizard } = await editor('Type', SIDED);
+    const before = wizard.recipe.value.fields.Type?.fallbacks;
+    await selectSource(wrapper, 'column:Received Currency');
+    expect(wizard.recipe.value.fields.Type?.fallbacks).toEqual(before);
+  });
+
+  it('keeps a required field marked required, but lets a fallback stand in for its source', async () => {
+    const { wrapper } = await editor('Type', SIDED);
+    expect(wrapper.text()).not.toContain('optional');
+    expect(optionIds(wrapper)).toContain('__empty__');
+  });
+
+  it('shows no fallback controls outside a both recipe', async () => {
+    const { wrapper } = await editor('Currency', EVENTS);
+    expect(wrapper.find('[data-testid=fallback-column]').exists()).toBe(false);
+  });
+});

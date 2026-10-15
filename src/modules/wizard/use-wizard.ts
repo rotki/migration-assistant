@@ -2,9 +2,9 @@ import type { Message } from '@/modules/convert/messages';
 import { computed, type ComputedRef, inject, type InjectionKey, provide, type Ref, ref, shallowRef } from 'vue';
 import { DateFormat, detectDateFormats } from '@/modules/convert/dates';
 import { DecimalSeparator, detectDecimalSeparator } from '@/modules/convert/numbers';
-import { MOVED_AMOUNT_COLUMNS, type Recipe, SourceKind } from '@/modules/convert/recipe';
+import { meetsAll, MOVED_AMOUNT_COLUMNS, type Recipe, RecipeFormat, SourceKind } from '@/modules/convert/recipe';
 import { createRowConverter, RecipeError, type RowResult } from '@/modules/convert/row-converter';
-import { guessEventTypes, guessLocation, guessSeparator, guessSwap, suggestFields, suggestFormat } from '@/modules/convert/suggest';
+import { guessEventTypes, guessLocation, guessSeparator, guessSwap, suggestFormat, suggestMapping } from '@/modules/convert/suggest';
 import { parseCsv } from '@/modules/csv/parser';
 import { decodeSample, detectDelimiter, detectEncoding, detectHeaderIndex, normalizeHeader, SAMPLE_BYTES } from '@/modules/csv/sniff';
 import { RotkiColumn, RotkiFormat } from '@/modules/rotki-format';
@@ -36,13 +36,18 @@ export interface Wizard {
   preview: ComputedRef<Preview>;
   dateFormats: ComputedRef<string[]>;
   /** The format the file most likely is, chosen when it was loaded. */
-  suggestedFormat: Ref<RotkiFormat | undefined>;
+  suggestedFormat: Ref<RecipeFormat | undefined>;
   /** The wizard step on screen, counted from 0. */
   step: Ref<number>;
   loadFile: (file: File) => Promise<void>;
-  setFormat: (format: RotkiFormat) => void;
+  setFormat: (format: RecipeFormat) => void;
   applyRecipe: (recipe: Recipe) => void;
-  columnSamples: (column: string) => string[];
+  /**
+   * The non-empty values of a source column in the sample. With `output`, a recipe of format
+   * `both` gives only the rows that go to that rotki file, so a trade's label is not offered as
+   * an event type.
+   */
+  columnSamples: (column: string, output?: RotkiFormat) => string[];
   /** Forgets the file and the recipe and returns to the first step. */
   restart: () => void;
 }
@@ -54,7 +59,7 @@ const DEFAULT_TIME_ZONE = 'UTC';
 
 function emptyRecipe(): Recipe {
   return {
-    version: 1,
+    version: 2,
     name: '',
     input: { encoding: 'utf-8', delimiter: ',', headerIndex: 0 },
     format: RotkiFormat.trades,
@@ -70,7 +75,7 @@ export function provideWizard(): Wizard {
   const isWholeFile = ref(true);
   const recipe = ref<Recipe>(emptyRecipe());
   const step = ref(0);
-  const suggestedFormat = ref<RotkiFormat>();
+  const suggestedFormat = ref<RecipeFormat>();
 
   function restart(): void {
     file.value = undefined;
@@ -86,11 +91,22 @@ export function provideWizard(): Wizard {
   const header = computed<string[]>(() => normalizeHeader(records.value[recipe.value.input.headerIndex] ?? []));
   const rows = computed<string[][]>(() => records.value.slice(recipe.value.input.headerIndex + 1));
 
-  function columnSamples(column: string): string[] {
+  /** Whether a record goes to `output`; for a recipe of a single format, every record does. */
+  function goesTo(record: readonly string[], output: RotkiFormat | undefined): boolean {
+    if (!output || recipe.value.format !== RecipeFormat.both)
+      return true;
+    const isTrade = meetsAll(recipe.value.route, name => record[header.value.indexOf(name)] ?? '');
+    return isTrade === (output === RotkiFormat.trades);
+  }
+
+  function columnSamples(column: string, output?: RotkiFormat): string[] {
     const index = header.value.indexOf(column);
     if (index === -1)
       return [];
-    return rows.value.map(record => record[index] ?? '').filter(value => value.trim() !== '');
+    return rows.value
+      .filter(record => goesTo(record, output))
+      .map(record => record[index] ?? '')
+      .filter(value => value.trim() !== '');
   }
 
   const dateFormats = computed<string[]>(() => {
@@ -117,7 +133,7 @@ export function provideWizard(): Wizard {
     const type = recipe.value.fields[RotkiColumn.type];
     if (type?.source.kind !== SourceKind.column)
       return;
-    type.values = guessEventTypes(columnSamples(type.source.column));
+    type.values = guessEventTypes(columnSamples(type.source.column, RotkiFormat.events));
   }
 
   /** Fits the suggested separators to the values, as `-` for `BTC-EUR`. */
@@ -128,9 +144,14 @@ export function provideWizard(): Wizard {
     }
   }
 
-  function setFormat(format: RotkiFormat): void {
+  function setFormat(format: RecipeFormat): void {
     recipe.value.format = format;
-    recipe.value.fields = suggestFields(header.value, format);
+    const { fields, route } = suggestMapping(header.value, format);
+    recipe.value.fields = fields;
+    if (route)
+      recipe.value.route = route;
+    else
+      delete recipe.value.route;
     const location = guessLocation(file.value?.name ?? '');
     if (location)
       recipe.value.fields[RotkiColumn.location] = { source: { kind: SourceKind.constant, value: location } };

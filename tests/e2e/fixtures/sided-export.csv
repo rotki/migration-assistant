@@ -1,0 +1,6 @@
+Date,Sent Amount,Sent Currency,Received Amount,Received Currency,Fee Amount,Fee Currency,Net Worth Amount,Net Worth Currency,Label,Description,TxHash
+2024-03-05 12:00:00,30000,EUR,0.5,BTC,15,EUR,30000,EUR,,Buy BTC,0xa1
+2024-03-06 08:00:00,,,1.5,ETH,,,4500,EUR,,From my wallet,0xb2
+2024-03-07 09:30:00,,,0.01,ETH,,,30,EUR,staking,Validator reward,0xc3
+2024-03-08 10:00:00,0.25,ETH,,,0.001,ETH,750,EUR,,To cold storage,0xd4
+2024-03-09 11:15:00,,,5,XYZ,,,0,EUR,mystery,,0xe5
