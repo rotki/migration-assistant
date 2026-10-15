@@ -43,6 +43,7 @@ export function createMessages(t: Composer['t']): Messages {
     [MessageCode.noHeader]: () => t('messages.no_header'),
     [MessageCode.stopped]: () => t('messages.stopped'),
     [MessageCode.stoppedWithDetail]: params => t('messages.stopped_with_detail', params),
+    [MessageCode.newVersion]: () => t('messages.new_version'),
   };
 
   const formatNames: Record<string, () => string> = {

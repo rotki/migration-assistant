@@ -141,6 +141,7 @@
     "missing_column": "The file has no column named \"{column}\".",
     "needs_route": "Say which rows are trades: pick the columns a trade fills.",
     "needs_source": "{column} needs a source column or a fixed value.",
+    "new_version": "A new version of this page is out, so the converter could not start. Save the recipe, reload the page and load the recipe again.",
     "no_dates": "The recipe has no valid date format or time zone.",
     "no_decimal_separator": "The recipe has no valid decimal separator.",
     "no_format": "The recipe names no rotki format.",

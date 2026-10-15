@@ -41,6 +41,7 @@ export const MessageCode = {
   noHeader: 'no_header',
   stopped: 'stopped',
   stoppedWithDetail: 'stopped_with_detail',
+  newVersion: 'new_version',
 } as const;
 
 export type MessageCode = (typeof MessageCode)[keyof typeof MessageCode];

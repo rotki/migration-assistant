@@ -1,7 +1,7 @@
 import type { ConversionStats } from './convert-stream';
 import { onScopeDispose, readonly, type Ref, shallowRef } from 'vue';
 import { RotkiFormat } from '@/modules/rotki-format';
-import { type Message, MessageError, type RejectedFileTexts } from './messages';
+import { type Message, message, MessageCode, MessageError, type RejectedFileTexts } from './messages';
 import { type ConversionMessage, MessageType, OUTPUT_DIRECTORY, problemsOf, type StartConversion } from './protocol';
 import { outputFormats, parseRecipe, type Recipe, serializeRecipe } from './recipe';
 
@@ -86,6 +86,17 @@ async function readOutput(fileName: string, downloadName: string): Promise<Conve
 function offeredFormats(recipe: Recipe, stats: ConversionStats): RotkiFormat[] {
   const formats = outputFormats(recipe.format);
   return formats.length === 1 ? [...formats] : formats.filter(format => stats.convertedByFormat[format] > 0);
+}
+
+/**
+ * What a worker's `error` event means. An error thrown inside the worker arrives as an
+ * `ErrorEvent` with its message. A plain `Event` means the worker script itself did not load,
+ * which after a deployment is a tab still running the previous release.
+ */
+function workerError(event: Event): Error {
+  if (event instanceof ErrorEvent)
+    return new Error(event.message);
+  return new MessageError(message(MessageCode.newVersion));
 }
 
 /** Runs a conversion in a worker and exposes its progress and the files it wrote. */
@@ -174,28 +185,28 @@ export function useConversion(): Conversion {
     const current = new Worker(new URL('../../workers/convert.worker.ts', import.meta.url), { type: 'module' });
     worker = current;
     current.addEventListener('message', (event: MessageEvent<ConversionMessage>) => {
-      const message = event.data;
+      const reply = event.data;
       if (ownRun !== run)
         return;
-      if (message.type === MessageType.progress) {
-        stats.value = message.stats;
+      if (reply.type === MessageType.progress) {
+        stats.value = reply.stats;
         return;
       }
       current.terminate();
       worker = undefined;
-      if (message.type === MessageType.failed) {
-        problems.value = message.problems;
+      if (reply.type === MessageType.failed) {
+        problems.value = reply.problems;
         state.value = ConversionState.failed;
         return;
       }
-      stats.value = message.stats;
-      collect(request, names, message.stats, ownRun).catch((error: unknown) => {
+      stats.value = reply.stats;
+      collect(request, names, reply.stats, ownRun).catch((error: unknown) => {
         if (ownRun === run)
           fail(error);
       });
     });
-    current.addEventListener('error', (event) => {
-      fail(new Error(event.message));
+    current.addEventListener('error', (event: Event) => {
+      fail(workerError(event));
       cancel();
     });
     current.postMessage(request);
