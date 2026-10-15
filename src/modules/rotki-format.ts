@@ -1,3 +1,5 @@
+import { ROTKI_EVENT_TYPES, ROTKI_LOCATIONS } from './rotki-release';
+
 /**
  * The two generic CSV formats rotki imports, as read by
  * `rotkehlchen/data_import/importers/rotki_trades.py` and `rotki_events.py`.
@@ -52,93 +54,15 @@ export const ROTKI_EVENT_COLUMNS = [
   RotkiColumn.timestamp,
 ] as const;
 
-/** Values rotki accepts in the `Type` column of a generic events file. */
-export const ROTKI_EVENT_TYPES = [
-  'Deposit',
-  'Withdrawal',
-  'Income',
-  'Loss',
-  'Spend',
-  'Staking',
-] as const;
+/** Generated from rotki's source by `pnpm sync:rotki`; see `rotki-release.ts`. */
+export { ROTKI_EVENT_TYPES, ROTKI_LOCATIONS };
 
 export type RotkiEventType = (typeof ROTKI_EVENT_TYPES)[number];
 
-/**
- * Locations rotki deserializes, as `Location.serialize()` writes them: the enum name in
- * lower case with spaces for underscores. rotki files any other value under `external`
- * without a word, so the converter rejects those rows instead.
- */
-export const ROTKI_LOCATIONS = [
-  'external',
-  'kraken',
-  'poloniex',
-  'bittrex',
-  'binance',
-  'bitmex',
-  'coinbase',
-  'banks',
-  'blockchain',
-  'coinbasepro',
-  'gemini',
-  'equities',
-  'realestate',
-  'commodities',
-  'cryptocom',
-  'uniswap',
-  'bitstamp',
-  'binanceus',
-  'bitfinex',
-  'bitcoinde',
-  'iconomi',
-  'kucoin',
-  'balancer',
-  'loopring',
-  'ftx',
-  'nexo',
-  'blockfi',
-  'independentreserve',
-  'gitcoin',
-  'sushiswap',
-  'shapeshift',
-  'uphold',
-  'bitpanda',
-  'bisq',
-  'ftxus',
-  'okx',
-  'ethereum',
-  'optimism',
-  'polygon pos',
-  'arbitrum one',
-  'base',
-  'gnosis',
-  'woo',
-  'bybit',
-  'scroll',
-  'zksync lite',
-  'htx',
-  'bitcoin',
-  'bitcoin cash',
-  'polkadot',
-  'kusama',
-  'coinbaseprime',
-  'binance sc',
-  'solana',
-  'avalanche',
-  'hyperliquid',
-  'monad',
-  'gate',
-  'bit2me',
-  'coinex',
-  'sonic',
-  'robinhood',
-  'ink',
-  'qonto',
-  'fints',
-] as const;
+export type RotkiLocation = (typeof ROTKI_LOCATIONS)[number];
 
 /** The location rotki files rows under when nothing more specific fits. */
-export const DEFAULT_LOCATION = 'external';
+export const DEFAULT_LOCATION = 'external' satisfies RotkiLocation;
 
 export function getRotkiColumns(format: RotkiFormat): readonly RotkiColumn[] {
   return format === RotkiFormat.trades ? ROTKI_TRADE_COLUMNS : ROTKI_EVENT_COLUMNS;
