@@ -36,9 +36,16 @@ class FakeWorker {
       listener({ data: message });
   }
 
+  /** An error thrown inside the worker, which arrives as an `ErrorEvent`. */
   crash(message: string): void {
     for (const listener of this.listeners.get('error') ?? [])
-      listener({ message });
+      listener(new ErrorEvent('error', { message }));
+  }
+
+  /** The worker script did not load, as when a release replaced it; that arrives as a plain `Event`. */
+  failToLoad(): void {
+    for (const listener of this.listeners.get('error') ?? [])
+      listener(new Event('error'));
   }
 }
 
@@ -171,6 +178,14 @@ describe('useConversion', () => {
     lastWorker().crash('Out of memory');
     expect(conversion.state.value).toBe('failed');
     expect(conversion.problems.value).toEqual([message(MessageCode.stoppedWithDetail, { detail: 'Out of memory' })]);
+    expect(lastWorker().terminated).toBe(true);
+  });
+
+  it('says a new version is out when the worker script does not load, and stops it', async () => {
+    await conversion.start(file, recipe, texts);
+    lastWorker().failToLoad();
+    expect(conversion.state.value).toBe('failed');
+    expect(conversion.problems.value).toEqual([message(MessageCode.newVersion)]);
     expect(lastWorker().terminated).toBe(true);
   });
 
