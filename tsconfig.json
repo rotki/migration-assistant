@@ -21,6 +21,6 @@
     "isolatedModules": true,
     "skipLibCheck": true
   },
-  "include": ["src/**/*.ts", "src/**/*.vue", "tests/**/*.ts", "vite.config.ts", "playwright.config.ts"],
+  "include": ["src/**/*.ts", "src/**/*.vue", "tests/**/*.ts", "scripts/**/*.ts", "vite.config.ts", "playwright.config.ts"],
   "exclude": ["src/workers/**"]
 }

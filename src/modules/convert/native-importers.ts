@@ -1,4 +1,8 @@
+import type { ROTKI_IMPORTER_COLUMNS } from '@/modules/rotki-release';
 import { ROTKI_EVENT_COLUMNS, ROTKI_TRADE_COLUMNS } from '@/modules/rotki-format';
+
+/** One of rotki's CSV importers, by its module name in `rotkehlchen/data_import/importers`. */
+export type RotkiImporter = keyof typeof ROTKI_IMPORTER_COLUMNS;
 
 /** The import an importer page offers, when it offers more than one; the page names it in its language. */
 export const ImporterSection = {
@@ -11,7 +15,7 @@ export type ImporterSection = (typeof ImporterSection)[keyof typeof ImporterSect
 
 /** A CSV format one of rotki's own importers reads, under **Import Data** in rotki. */
 export interface NativeImporter {
-  id: string;
+  id: RotkiImporter;
   /** The name rotki's Import Data page lists it under. */
   name: string;
   /** Where to go once on that page, when the name alone is not enough. */
@@ -24,14 +28,22 @@ export interface NativeImporter {
 }
 
 /**
- * Taken from `rotkehlchen/data_import/importers/*.py` in rotki. Bittrex is left out: its
- * importer accepts several inconsistent layouts no fingerprint describes reliably.
+ * rotki's importers this app does not point to, with why. Every importer in
+ * {@link ROTKI_IMPORTER_COLUMNS} is either here or in {@link NATIVE_IMPORTERS}, and a test keeps it so.
+ */
+export const SKIPPED_IMPORTERS: Partial<Record<RotkiImporter, string>> = {
+  bittrex: 'Its importer accepts several inconsistent layouts that no set of columns describes reliably.',
+};
+
+/**
+ * Header variants per importer, curated from `rotkehlchen/data_import/importers/*.py` in rotki. A
+ * test checks every column against {@link ROTKI_IMPORTER_COLUMNS}, generated from the same source.
  */
 export const NATIVE_IMPORTERS: readonly NativeImporter[] = [
   { id: 'rotki_events', name: 'Custom Import', section: ImporterSection.events, variants: [ROTKI_EVENT_COLUMNS] },
   { id: 'rotki_trades', name: 'Custom Import', section: ImporterSection.trades, variants: [ROTKI_TRADE_COLUMNS] },
   { id: 'binance', name: 'Binance', variants: [['UTC_Time', 'Account', 'Operation', 'Coin', 'Change', 'Remark']] },
-  { id: 'bisq', name: 'Bisq', variants: [['Trade ID', 'Date/Time', 'Market', 'Price', 'Amount in BTC', 'Amount', 'Offer type', 'Status']] },
+  { id: 'bisq_trades', name: 'Bisq', variants: [['Trade ID', 'Date/Time', 'Market', 'Price', 'Amount in BTC', 'Amount', 'Offer type', 'Status']] },
   { id: 'bitcoin_tax', name: 'bitcoin.tax', variants: [['Date', 'Action', 'Account', 'Symbol', 'Volume', 'Currency']] },
   { id: 'bitmex', name: 'BitMEX', variants: [['transactTime', 'transactType', 'transactStatus', 'amount', 'fee', 'address']] },
   { id: 'bitstamp', name: 'Bitstamp', variants: [['Type', 'Datetime', 'Amount', 'Value', 'Fee', 'Sub Type']] },
@@ -51,8 +63,8 @@ export const NATIVE_IMPORTERS: readonly NativeImporter[] = [
     ],
   },
   { id: 'nexo', name: 'Nexo', variants: [['Transaction', 'Type', 'Input Currency', 'Input Amount', 'Output Currency', 'Output Amount', 'Details', 'Date / Time (UTC)']] },
-  { id: 'shapeshift', name: 'ShapeShift', variants: [['timestamp', 'inputTxid', 'inputAddress', 'inputCurrency', 'inputAmount', 'outputTxid', 'outputAddress', 'outputCurrency', 'outputAmount']] },
-  { id: 'uphold', name: 'Uphold', variants: [['Date', 'Id', 'Type', 'Origin', 'Origin Currency', 'Origin Amount', 'Destination', 'Destination Currency', 'Destination Amount', 'Status']] },
+  { id: 'shapeshift_trades', name: 'ShapeShift', variants: [['timestamp', 'inputTxid', 'inputAddress', 'inputCurrency', 'inputAmount', 'outputTxid', 'outputAddress', 'outputCurrency', 'outputAmount']] },
+  { id: 'uphold_transactions', name: 'Uphold', variants: [['Date', 'Id', 'Type', 'Origin', 'Origin Currency', 'Origin Amount', 'Destination', 'Destination Currency', 'Destination Amount', 'Status']] },
 ];
 
 /**

@@ -23,6 +23,7 @@
     "test:e2e": "playwright test",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
+    "sync:rotki": "node scripts/sync-rotki.ts",
     "prepare": "husky"
   },
   "dependencies": {

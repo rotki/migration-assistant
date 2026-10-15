@@ -49,6 +49,65 @@ pnpm typecheck
 The content security policy is only added to builds, since the dev server needs a
 websocket for hot reload. Use `pnpm build && pnpm preview` to check behavior under it.
 
+## Updating to a new rotki release
+
+The converter has to agree with the rotki release people import into, in two places:
+
+- **Locations.** rotki files a `Location` value it does not know under `external` without a
+  word, so the converter only accepts the locations the release deserializes.
+- **Importer columns.** The generic trades and events formats must have exactly the columns
+  rotki's generic importers read. The file step also recognises exports that one of rotki's own
+  importers (Binance, Kucoin and the others under Import Data) reads as they are, by the
+  columns each importer reads.
+
+Both come from `src/modules/rotki-release.ts`, which is generated from rotki's source. Do not
+edit it by hand. To move to a new release:
+
+1. Regenerate it from the release tag:
+
+   ```bash
+   pnpm sync:rotki --ref v1.45.0                    # reads rotki from GitHub
+   pnpm sync:rotki --ref v1.45.0 --repo ../rotki    # or from a local clone with the tag
+   ```
+
+   The script prints what changed since the last sync: locations, event types, importers and
+   the columns of each importer.
+
+   It treats rotki's source as untrusted text, since what it reads ends up in code the app
+   imports. Every value must match a strict pattern (`PATTERNS` in `scripts/sync-rotki.ts`),
+   the ref must be a release tag, and each list must have a plausible size. Anything else stops
+   the sync without writing. If rotki adds a value the patterns reject, such as a column with a
+   new character, check it in rotki's source first, then widen the pattern.
+
+2. Run `pnpm test:run`. `src/modules/rotki-release.spec.ts` fails when the change needs a
+   decision, and the failure names the importer and column:
+
+   - **"match only on columns rotki still reads"**: an importer renamed or dropped a column
+     that `NATIVE_IMPORTERS` in `src/modules/convert/native-importers.ts` matches on. Update
+     that importer's variants from its module in `rotkehlchen/data_import/importers/`.
+   - **"cover every importer rotki has"**: rotki added an importer. Add it to
+     `NATIVE_IMPORTERS` with the columns it requires (its `name` as rotki's Import Data page
+     lists it), or to `SKIPPED_IMPORTERS` with the reason, as Bittrex is.
+   - **"write exactly the columns rotki's generic importers read"**: the generic formats
+     changed. Update `RotkiColumn`, `ROTKI_TRADE_COLUMNS` and `ROTKI_EVENT_COLUMNS` in
+     `src/modules/rotki-format.ts`, and the converter if a column means something new.
+
+3. Check what the tests cannot:
+
+   - **New columns in an importer you match on.** The script reports them. If rotki now
+     requires one, add it to that importer's variant, or the file step would send people to an
+     importer that rejects their file.
+   - **New event types.** They appear in the Type options on their own. Check that
+     `guessEventType` in `src/modules/convert/suggest.ts` maps exchange labels to them.
+   - **New Import Data sections**, such as a third tab on an importer page: add them to
+     `ImporterSection` and to `step_file.native_importer.sections` in `src/locales/en.json`.
+
+4. Commit the regenerated file with the changes, as `feat: match rotki v1.45.0`, so the release
+   notes say which rotki release the converter targets.
+
+Sync to a release tag, not to `develop`: people import into the release they run, and a
+location that exists only on `develop` would land under `external` in their rotki.
+
 ## License
 
 [AGPL-3.0](LICENSE.md)
