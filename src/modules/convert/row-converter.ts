@@ -1,8 +1,9 @@
 import { pipe } from 'plainfp';
 import { all, err, flatMap, map, match, ok, type Result } from 'plainfp/result';
 import { getRotkiColumns, isRotkiEventType, ROTKI_LOCATIONS, RotkiColumn, RotkiFormat } from '@/modules/rotki-format';
-import { describeDateFormat, parseDate } from './dates';
-import { absoluteDecimal, DecimalSeparator, isNegativeDecimal, isZeroDecimal, normalizeDecimal } from './numbers';
+import { parseDate } from './dates';
+import { type Message, rejection, RejectionCode } from './messages';
+import { absoluteDecimal, isNegativeDecimal, isZeroDecimal, normalizeDecimal } from './numbers';
 import { AMOUNT_COLUMNS, type FieldMapping, isRequiredColumn, mappedValue, type Recipe, SKIP_ROW, SourceKind, splitValue, validateRecipe } from './recipe';
 
 /**
@@ -27,7 +28,7 @@ export type RowKind = (typeof RowKind)[keyof typeof RowKind];
 
 export interface Rejection {
   kind: typeof RowKind.rejected;
-  reason: string;
+  reason: Message<RejectionCode>;
   column: RotkiColumn;
   cause: RejectionCause;
 }
@@ -55,12 +56,12 @@ const LOCATIONS: ReadonlySet<string> = new Set(ROTKI_LOCATIONS);
 export class RecipeError extends Error {
   override name = 'RecipeError';
 
-  constructor(readonly problems: string[], options?: ErrorOptions) {
-    super(problems.join(' '), options);
+  constructor(readonly problems: Message[], options?: ErrorOptions) {
+    super(problems.map(problem => problem.code).join(' '), options);
   }
 }
 
-function reject<T>(column: RotkiColumn, reason: string, cause: RejectionCause = RejectionCause.mapping): Result<T, RowProblem> {
+function reject<T>(column: RotkiColumn, reason: Message<RejectionCode>, cause: RejectionCause = RejectionCause.mapping): Result<T, RowProblem> {
   return err({ kind: RowKind.rejected, reason, column, cause });
 }
 
@@ -75,28 +76,28 @@ function sourceValue(mapping: FieldMapping, record: readonly string[], index: nu
 function convertAmount(column: RotkiColumn, raw: string, recipe: Recipe): Result<string, RowProblem> {
   const amount = normalizeDecimal(raw, recipe.numbers.decimalSeparator);
   if (amount === undefined)
-    return reject(column, `${column} "${raw}" is not a number with the ${recipe.numbers.decimalSeparator === DecimalSeparator.comma ? 'comma' : 'dot'} decimal separator.`, RejectionCause.format);
+    return reject(column, rejection(RejectionCode.amountNotNumber, { column, value: raw, separator: recipe.numbers.decimalSeparator }), RejectionCause.format);
   if (recipe.fields[column]?.absolute)
     return ok(absoluteDecimal(amount));
   if (isNegativeDecimal(amount))
-    return reject(column, `${column} "${raw}" is negative; turn on "Ignore the sign" for it.`);
+    return reject(column, rejection(RejectionCode.amountNegative, { column, value: raw }));
   return ok(amount);
 }
 
 function convertTimestamp(raw: string, recipe: Recipe): Result<string, RowProblem> {
   const epoch = parseDate(raw, recipe.dates.format, recipe.dates.timeZone);
   if (epoch === undefined)
-    return reject(RotkiColumn.timestamp, `Timestamp "${raw}" does not match the date format ${describeDateFormat(recipe.dates.format)}.`, RejectionCause.format);
+    return reject(RotkiColumn.timestamp, rejection(RejectionCode.timestampFormat, { value: raw, format: recipe.dates.format }), RejectionCause.format);
   return ok(String(epoch));
 }
 
 function convertLocation(raw: string): Result<string, RowProblem> {
   const location = raw.toLowerCase().replaceAll('_', ' ');
-  return LOCATIONS.has(location) ? ok(location) : reject(RotkiColumn.location, `Location "${raw}" is not a rotki location.`);
+  return LOCATIONS.has(location) ? ok(location) : reject(RotkiColumn.location, rejection(RejectionCode.unknownLocation, { value: raw }));
 }
 
 function convertType(raw: string): Result<string, RowProblem> {
-  return isRotkiEventType(raw) ? ok(raw) : reject(RotkiColumn.type, `Type "${raw}" is not a rotki event type; map it to one or skip it.`);
+  return isRotkiEventType(raw) ? ok(raw) : reject(RotkiColumn.type, rejection(RejectionCode.unknownType, { value: raw }));
 }
 
 /** Leaves out a zero fee, which rotki would otherwise record as a fee event. */
@@ -107,7 +108,7 @@ function settleFee(row: Row): Result<Row, RowProblem> {
     row.set(RotkiColumn.feeCurrency, '');
     return ok(row);
   }
-  return row.get(RotkiColumn.feeCurrency) === '' ? reject(RotkiColumn.feeCurrency, `Fee "${fee}" has no Fee Currency.`) : ok(row);
+  return row.get(RotkiColumn.feeCurrency) === '' ? reject(RotkiColumn.feeCurrency, rejection(RejectionCode.feeWithoutCurrency, { value: fee })) : ok(row);
 }
 
 function swapSides(row: Row): Row {
@@ -156,7 +157,7 @@ export function createRowConverter(recipe: Recipe, header: readonly string[]): R
 
   function convertRaw(column: RotkiColumn, raw: string): Result<string, RowProblem> {
     if (raw === '')
-      return isRequiredColumn(recipe.format, column) ? reject(column, `${column} is empty.`) : ok('');
+      return isRequiredColumn(recipe.format, column) ? reject(column, rejection(RejectionCode.columnEmpty, { column })) : ok('');
     if (AMOUNT_COLUMNS.has(column))
       return convertAmount(column, raw, recipe);
     if (column === RotkiColumn.timestamp)

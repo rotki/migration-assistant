@@ -1,37 +1,57 @@
 <script setup lang="ts">
+import type { Message } from '@/modules/convert/messages';
 import { RuiAlert, RuiButton, RuiFileUpload, RuiIcon, RuiMenuSelect } from '@rotki/ui-library';
 import { computed, ref, useTemplateRef, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { parseRecipe } from '@/modules/convert/recipe';
-import { DELIMITERS, ENCODINGS } from '@/modules/csv/sniff';
+import { useMessages } from '@/modules/convert/use-messages';
+import { type Delimiter, DELIMITERS, ENCODINGS } from '@/modules/csv/sniff';
 import { useWizard } from '@/modules/wizard/use-wizard';
 import RawRecordsTable from './RawRecordsTable.vue';
 
 const PREVIEW_RECORDS = 12;
 
+const { t } = useI18n({ useScope: 'global' });
+const { translate } = useMessages();
 const { file, isWholeFile, records, recipe, applyRecipe, loadFile, restart } = useWizard();
 
 const selected = ref<File>();
-const recipeError = ref('');
+const recipeError = ref<Message>();
 const recipeInput = useTemplateRef<HTMLInputElement>('recipeInput');
 
 const encodingOptions = ENCODINGS.map(id => ({ id, label: id.toUpperCase() }));
-const delimiterOptions = DELIMITERS.map(id => ({
-  id,
-  label: { ',': 'Comma (,)', ';': 'Semicolon (;)', '\t': 'Tab', '|': 'Pipe (|)' }[id],
-}));
+
+const delimiterOptions = computed(() => {
+  const labels: Record<Delimiter, string> = {
+    ',': t('step_file.delimiter.options.comma'),
+    ';': t('step_file.delimiter.options.semicolon'),
+    '\t': t('step_file.delimiter.options.tab'),
+    '|': t('step_file.delimiter.options.pipe'),
+  };
+  return DELIMITERS.map(id => ({ id, label: labels[id] }));
+});
 
 const previewRecords = computed<string[][]>(() => records.value.slice(0, recipe.value.input.headerIndex + PREVIEW_RECORDS));
 
 const showSettings = ref(false);
 
 const encodingLabel = computed<string>(() => encodingOptions.find(option => option.id === recipe.value.input.encoding)?.label ?? '');
-const delimiterLabel = computed<string>(() => ({ ',': 'comma', ';': 'semicolon', '\t': 'tab', '|': 'pipe' })[recipe.value.input.delimiter]);
+
+const delimiterLabel = computed<string>(() => {
+  const names: Record<Delimiter, string> = {
+    ',': t('step_file.delimiter.names.comma'),
+    ';': t('step_file.delimiter.names.semicolon'),
+    '\t': t('step_file.delimiter.names.tab'),
+    '|': t('step_file.delimiter.names.pipe'),
+  };
+  return names[recipe.value.input.delimiter];
+});
 
 const sizeLabel = computed<string>(() => {
   const size = file.value?.size ?? 0;
   if (size < 1024 * 1024)
-    return `${(size / 1024).toFixed(1)} KB`;
-  return `${(size / 1024 / 1024).toFixed(1)} MB`;
+    return t('common.size.kb', { size: (size / 1024).toFixed(1) });
+  return t('common.size.mb', { size: (size / 1024 / 1024).toFixed(1) });
 });
 
 // Removing the file from the upload field starts the wizard over.
@@ -58,7 +78,7 @@ async function loadRecipe(event: Event): Promise<void> {
     recipeError.value = saved.error;
     return;
   }
-  recipeError.value = '';
+  recipeError.value = undefined;
   applyRecipe(saved.value);
 }
 </script>
@@ -77,13 +97,23 @@ async function loadRecipe(event: Event): Promise<void> {
       class="flex flex-col gap-2 text-sm text-rui-text-secondary"
       data-testid="file-help"
     >
+      <i18n-t
+        keypath="step_file.help.where"
+        tag="p"
+        scope="global"
+      >
+        <template #history>
+          <span class="font-medium text-rui-text">{{ t('step_file.help.transaction_history') }}</span>
+        </template>
+        <template #statements>
+          <span class="font-medium text-rui-text">{{ t('step_file.help.statements') }}</span>
+        </template>
+        <template #reports>
+          <span class="font-medium text-rui-text">{{ t('step_file.help.reports') }}</span>
+        </template>
+      </i18n-t>
       <p>
-        Most exchanges put the export under <span class="font-medium text-rui-text">Transaction history</span>,
-        <span class="font-medium text-rui-text">Statements</span> or <span class="font-medium text-rui-text">Reports</span>,
-        as CSV. Pick the full history if the exchange offers a choice.
-      </p>
-      <p>
-        Any CSV works: the next steps detect its layout and let you say what each column holds.
+        {{ t('step_file.help.any_csv') }}
       </p>
     </div>
 
@@ -93,17 +123,28 @@ async function loadRecipe(event: Event): Promise<void> {
           class="text-sm text-rui-text-secondary"
           data-testid="detected-settings"
         >
-          Detected <span class="font-medium text-rui-text">{{ encodingLabel }}</span>,
-          <span class="font-medium text-rui-text">{{ delimiterLabel }}</span> separated, column names on
-          <span class="font-medium text-rui-text">row {{ recipe.input.headerIndex + 1 }}</span>.
+          <i18n-t
+            keypath="step_file.detected"
+            scope="global"
+          >
+            <template #encoding>
+              <span class="font-medium text-rui-text">{{ encodingLabel }}</span>
+            </template>
+            <template #delimiter>
+              <span class="font-medium text-rui-text">{{ delimiterLabel }}</span>
+            </template>
+            <template #row>
+              <span class="font-medium text-rui-text">{{ t('step_file.detected_row', { number: recipe.input.headerIndex + 1 }) }}</span>
+            </template>
+          </i18n-t>
           <button
             type="button"
-            class="text-rui-link underline underline-offset-2"
+            class="ml-1 text-rui-link underline underline-offset-2"
             :aria-expanded="showSettings"
             data-testid="change-settings"
             @click="showSettings = !showSettings"
           >
-            {{ showSettings ? 'Hide' : 'Change' }}
+            {{ showSettings ? t('step_file.settings.hide') : t('step_file.settings.change') }}
           </button>
         </p>
         <div class="flex items-center gap-2">
@@ -126,7 +167,7 @@ async function loadRecipe(event: Event): Promise<void> {
                 size="16"
               />
             </template>
-            Use a saved recipe
+            {{ t('step_file.use_recipe') }}
           </RuiButton>
         </div>
       </div>
@@ -134,7 +175,7 @@ async function loadRecipe(event: Event): Promise<void> {
       <RuiAlert
         v-if="recipeError"
         type="error"
-        :description="recipeError"
+        :description="translate(recipeError)"
       />
 
       <div
@@ -146,28 +187,27 @@ async function loadRecipe(event: Event): Promise<void> {
           :options="encodingOptions"
           key-attr="id"
           text-attr="label"
-          label="Encoding"
-          hint="Change it if letters such as ü or é look garbled."
+          :label="t('step_file.encoding.label')"
+          :hint="t('step_file.encoding.hint')"
         />
         <RuiMenuSelect
           v-model="recipe.input.delimiter"
           :options="delimiterOptions"
           key-attr="id"
           text-attr="label"
-          label="Delimiter"
-          hint="The character between the columns."
+          :label="t('step_file.delimiter.label')"
+          :hint="t('step_file.delimiter.hint')"
         />
       </div>
 
       <section class="flex flex-col gap-2">
         <h2 class="font-semibold">
-          Your file
+          {{ t('step_file.your_file.title') }}
         </h2>
         <p class="text-sm text-rui-text-secondary">
-          The highlighted row holds the column names. If the exchange wrote other lines above
-          them, click the right row.
+          {{ t('step_file.your_file.description') }}
           <template v-if="!isWholeFile">
-            Settings and previews use the first {{ records.length }} records of {{ sizeLabel }}.
+            {{ t('step_file.your_file.partial', { count: records.length, size: sizeLabel }, records.length) }}
           </template>
         </p>
         <RawRecordsTable

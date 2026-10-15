@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { RuiButton, RuiIcon, RuiLogo, ThemeMode, useRotkiTheme } from '@rotki/ui-library';
+import { useI18n } from 'vue-i18n';
 
+const { t } = useI18n({ useScope: 'global' });
 const { isDark, switchThemeScheme } = useRotkiTheme();
 
 function toggleDark(): void {
@@ -14,7 +16,7 @@ function toggleDark(): void {
       <RouterLink
         to="/"
         class="flex items-center gap-3 no-underline"
-        aria-label="rotki migration assistant, home"
+        :aria-label="t('header.home_label')"
       >
         <RuiLogo
           size="2.25"
@@ -24,8 +26,8 @@ function toggleDark(): void {
           class="flex flex-col leading-none"
           aria-hidden="true"
         >
-          <span class="text-xl font-bold tracking-tight text-rui-primary dark:text-rui-text">rotki</span>
-          <span class="mt-1 text-xs font-medium uppercase tracking-wider text-rui-text-secondary">migration assistant</span>
+          <span class="text-xl font-bold tracking-tight text-rui-primary dark:text-rui-text">{{ t('header.brand_name') }}</span>
+          <span class="mt-1 text-xs font-medium uppercase tracking-wider text-rui-text-secondary">{{ t('header.brand_tagline') }}</span>
         </span>
       </RouterLink>
 
@@ -33,19 +35,19 @@ function toggleDark(): void {
         <span
           class="flex items-center gap-1.5 text-sm text-rui-text-secondary"
           data-testid="offline-badge"
-          title="Runs locally in your browser"
+          :title="t('header.runs_locally')"
         >
           <RuiIcon
             name="lu-shield-check"
             size="16"
             color="success"
           />
-          <span class="sr-only sm:not-sr-only">Runs locally in your browser</span>
+          <span class="sr-only sm:not-sr-only">{{ t('header.runs_locally') }}</span>
         </span>
         <RuiButton
           variant="text"
           icon
-          :aria-label="isDark ? 'Switch to light mode' : 'Switch to dark mode'"
+          :aria-label="isDark ? t('header.switch_to_light') : t('header.switch_to_dark')"
           @click="toggleDark()"
         >
           <RuiIcon :name="isDark ? 'lu-sun' : 'lu-moon'" />

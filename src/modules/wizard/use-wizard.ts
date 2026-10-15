@@ -1,3 +1,4 @@
+import type { Message } from '@/modules/convert/messages';
 import { computed, type ComputedRef, inject, type InjectionKey, provide, type Ref, ref, shallowRef } from 'vue';
 import { DateFormat, detectDateFormats } from '@/modules/convert/dates';
 import { DecimalSeparator, detectDecimalSeparator } from '@/modules/convert/numbers';
@@ -17,7 +18,8 @@ export interface PreviewRow {
 }
 
 export interface Preview {
-  problems: string[];
+  /** What keeps the recipe from converting this file, as messages to translate. */
+  problems: Message[];
   rows: PreviewRow[];
 }
 

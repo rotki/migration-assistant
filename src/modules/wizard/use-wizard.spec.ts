@@ -1,6 +1,7 @@
 import { mount } from '@vue/test-utils';
 import { describe, expect, it } from 'vitest';
 import { defineComponent, nextTick } from 'vue';
+import { message, MessageCode } from '@/modules/convert/messages';
 import { RotkiFormat } from '@/modules/rotki-format';
 import { provideWizard, type Wizard } from './use-wizard';
 
@@ -78,7 +79,7 @@ describe('the wizard', () => {
     wizard.recipe.value.fields.Currency = { source: { kind: 'column', column: 'Asset' } };
     await nextTick();
 
-    expect(wizard.preview.value).toEqual({ problems: ['The file has no column named "Asset".'], rows: [] });
+    expect(wizard.preview.value).toEqual({ problems: [message(MessageCode.missingColumn, { column: 'Asset' })], rows: [] });
   });
 
   it('starts over on restart', async () => {

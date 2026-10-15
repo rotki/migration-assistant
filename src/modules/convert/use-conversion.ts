@@ -1,6 +1,7 @@
 import type { ConversionStats } from './convert-stream';
 import { onScopeDispose, readonly, type Ref, shallowRef } from 'vue';
-import { type ConversionMessage, MessageType, OUTPUT_DIRECTORY, type StartConversion } from './protocol';
+import { type Message, MessageError, type RejectedFileTexts } from './messages';
+import { type ConversionMessage, MessageType, OUTPUT_DIRECTORY, problemsOf, type StartConversion } from './protocol';
 import { parseRecipe, type Recipe, serializeRecipe } from './recipe';
 
 export interface ConversionOutput {
@@ -21,10 +22,12 @@ export type ConversionState = (typeof ConversionState)[keyof typeof ConversionSt
 export interface Conversion {
   state: Readonly<Ref<ConversionState>>;
   stats: Readonly<Ref<ConversionStats | undefined>>;
-  problems: Readonly<Ref<readonly string[]>>;
+  /** Why the last run failed, as messages for the page to translate. */
+  problems: Readonly<Ref<readonly Message[]>>;
   output: Readonly<Ref<ConversionOutput | undefined>>;
   rejected: Readonly<Ref<ConversionOutput | undefined>>;
-  start: (file: File, recipe: Recipe) => Promise<void>;
+  /** `texts` are the rejected file's headers and reasons in the page's language. */
+  start: (file: File, recipe: Recipe, texts: RejectedFileTexts) => Promise<void>;
   cancel: () => void;
   /** Stops any run and forgets its results, for converting another file. */
   reset: () => void;
@@ -67,7 +70,7 @@ async function readOutput(fileName: string, downloadName: string): Promise<Conve
 export function useConversion(): Conversion {
   const state = shallowRef<ConversionState>(ConversionState.idle);
   const stats = shallowRef<ConversionStats>();
-  const problems = shallowRef<string[]>([]);
+  const problems = shallowRef<Message[]>([]);
   const output = shallowRef<ConversionOutput>();
   const rejected = shallowRef<ConversionOutput>();
   let worker: Worker | undefined;
@@ -100,7 +103,7 @@ export function useConversion(): Conversion {
   }
 
   function fail(reason: unknown): void {
-    problems.value = [reason instanceof Error ? reason.message : 'The conversion stopped unexpectedly.'];
+    problems.value = problemsOf(reason);
     state.value = ConversionState.failed;
   }
 
@@ -120,7 +123,7 @@ export function useConversion(): Conversion {
     state.value = ConversionState.done;
   }
 
-  async function launch(file: File, recipe: Recipe): Promise<void> {
+  async function launch(file: File, recipe: Recipe, texts: RejectedFileTexts): Promise<void> {
     const ownRun = run;
     await clearOutput();
     if (ownRun !== run)
@@ -129,7 +132,7 @@ export function useConversion(): Conversion {
     // A reactive recipe cannot be posted to a worker; the serialized round trip is plain data.
     const parsed = parseRecipe(serializeRecipe(recipe));
     if (!parsed.ok)
-      throw new Error(parsed.error);
+      throw new MessageError(parsed.error);
     const plain = parsed.value;
     const names = downloadNames(plain, file.name);
     const request: StartConversion = {
@@ -138,6 +141,7 @@ export function useConversion(): Conversion {
       recipe: plain,
       outputName: 'converted.csv',
       rejectedName: 'rejected.csv',
+      texts,
     };
 
     const current = new Worker(new URL('../../workers/convert.worker.ts', import.meta.url), { type: 'module' });
@@ -153,7 +157,7 @@ export function useConversion(): Conversion {
       current.terminate();
       worker = undefined;
       if (message.type === MessageType.failed) {
-        problems.value = message.problems.length > 0 ? message.problems : [message.message];
+        problems.value = message.problems;
         state.value = ConversionState.failed;
         return;
       }
@@ -164,20 +168,20 @@ export function useConversion(): Conversion {
       });
     });
     current.addEventListener('error', (event) => {
-      fail(new Error(event.message || 'The conversion stopped unexpectedly.'));
+      fail(new Error(event.message));
       cancel();
     });
     current.postMessage(request);
   }
 
-  async function start(file: File, recipe: Recipe): Promise<void> {
+  async function start(file: File, recipe: Recipe, texts: RejectedFileTexts): Promise<void> {
     cancel();
     releaseUrls();
     problems.value = [];
     stats.value = undefined;
     state.value = ConversionState.running;
     try {
-      await launch(file, recipe);
+      await launch(file, recipe, texts);
     }
     catch (error) {
       cancel();

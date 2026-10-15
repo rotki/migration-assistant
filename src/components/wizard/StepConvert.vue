@@ -1,32 +1,40 @@
 <script setup lang="ts">
 import { RuiAlert, RuiButton, RuiIcon, RuiProgress, RuiTextField } from '@rotki/ui-library';
 import { computed, onBeforeUnmount, ref } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { messageKey } from '@/modules/convert/messages';
 import { serializeRecipe, SourceKind } from '@/modules/convert/recipe';
 import { RowKind } from '@/modules/convert/row-converter';
 import { ConversionState, downloadNames, useConversion } from '@/modules/convert/use-conversion';
+import { useMessages } from '@/modules/convert/use-messages';
 import { RotkiColumn } from '@/modules/rotki-format';
 import { useWizard } from '@/modules/wizard/use-wizard';
 
+const { locale, t } = useI18n({ useScope: 'global' });
+const { rejectedFileTexts, translate } = useMessages();
 const { file, preview, recipe, restart } = useWizard();
 const { cancel, output, problems, rejected, reset, start, state, stats } = useConversion();
 
 const recipeUrl = ref<string>();
 
-const number = new Intl.NumberFormat();
+const number = computed<Intl.NumberFormat>(() => new Intl.NumberFormat(locale.value));
 
-const START_LABELS: Record<ConversionState, string> = {
-  [ConversionState.idle]: 'Convert the whole file',
-  [ConversionState.running]: 'Converting…',
-  [ConversionState.done]: 'Convert again',
-  [ConversionState.failed]: 'Try again',
-};
+const startLabel = computed<string>(() => {
+  const labels: Record<ConversionState, string> = {
+    [ConversionState.idle]: t('step_convert.start.idle'),
+    [ConversionState.running]: t('step_convert.start.running'),
+    [ConversionState.done]: t('step_convert.start.done'),
+    [ConversionState.failed]: t('step_convert.start.failed'),
+  };
+  return labels[state.value];
+});
 
 function formatSize(size: number): string {
   if (size < 1024)
-    return `${size} B`;
+    return t('common.size.b', { size });
   if (size < 1024 * 1024)
-    return `${(size / 1024).toFixed(1)} KB`;
-  return `${(size / 1024 / 1024).toFixed(1)} MB`;
+    return t('common.size.kb', { size: (size / 1024).toFixed(1) });
+  return t('common.size.mb', { size: (size / 1024 / 1024).toFixed(1) });
 }
 
 const names = computed(() => downloadNames(recipe.value, file.value?.name ?? ''));
@@ -39,8 +47,8 @@ const isLarge = computed<boolean>(() => (file.value?.size ?? 0) >= LARGE_FILE);
 const location = computed<string>(() => {
   const source = recipe.value.fields[RotkiColumn.location]?.source;
   if (source?.kind === SourceKind.column)
-    return `from the ${source.column} column`;
-  return source?.kind === SourceKind.constant ? source.value : 'not set';
+    return t('step_convert.location.column', { column: source.column });
+  return source?.kind === SourceKind.constant ? source.value : t('step_convert.location.not_set');
 });
 
 /** What the preview found, as the expectation for the whole file. */
@@ -49,11 +57,11 @@ const expectation = computed<string>(() => {
   const converted = rows.filter(row => row.result.kind === RowKind.converted).length;
   const rejectedRows = rows.filter(row => row.result.kind === RowKind.rejected).length;
   const skipped = rows.filter(row => row.result.kind === RowKind.skipped).length;
-  const parts = [`${converted} of ${rows.length} rows convert`];
+  const parts = [t('step_convert.expectation.converted', { converted, total: rows.length }, rows.length)];
   if (rejectedRows > 0)
-    parts.push(`${rejectedRows} rejected`);
+    parts.push(t('step_convert.expectation.rejected', { count: rejectedRows }));
   if (skipped > 0)
-    parts.push(`${skipped} skipped`);
+    parts.push(t('step_convert.expectation.skipped', { count: skipped }));
   return parts.join(', ');
 });
 
@@ -66,7 +74,7 @@ const progress = computed<number>(() => {
 
 async function convert(): Promise<void> {
   if (file.value)
-    await start(file.value, recipe.value);
+    await start(file.value, recipe.value, rejectedFileTexts(recipe.value.dates.format));
 }
 
 function convertAnother(): void {
@@ -97,19 +105,19 @@ onBeforeUnmount(() => {
       data-testid="convert-summary"
     >
       <dt class="text-rui-text-secondary">
-        File
+        {{ t('step_convert.file') }}
       </dt>
       <dd class="m-0 break-all">
-        {{ file?.name }} · {{ formatSize(file?.size ?? 0) }}
+        {{ t('common.name_and_size', { name: file?.name ?? '', size: formatSize(file?.size ?? 0) }) }}
       </dd>
       <dt class="text-rui-text-secondary">
-        Becomes
+        {{ t('step_convert.becomes') }}
       </dt>
       <dd class="m-0">
-        rotki {{ recipe.format }}, location {{ location }}
+        {{ t('step_convert.becomes_value', { format: recipe.format, location }) }}
       </dd>
       <dt class="text-rui-text-secondary">
-        In the preview
+        {{ t('step_convert.in_preview') }}
       </dt>
       <dd class="m-0">
         {{ expectation }}
@@ -126,15 +134,14 @@ onBeforeUnmount(() => {
         size="16"
         class="mt-0.5 shrink-0"
       />
-      A large file converts best in a normal window: private windows keep the result in memory
-      instead of on disk.
+      {{ t('step_convert.large_file') }}
     </p>
 
     <RuiTextField
       v-model="recipe.name"
-      label="Name"
+      :label="t('step_convert.name.label')"
       dense
-      :hint="`Downloads as ${names.output}`"
+      :hint="t('step_convert.name.hint', { name: names.output })"
       data-testid="output-name"
     />
 
@@ -148,14 +155,14 @@ onBeforeUnmount(() => {
         data-testid="start-conversion"
         @click="convert()"
       >
-        {{ START_LABELS[state] }}
+        {{ startLabel }}
       </RuiButton>
       <RuiButton
         v-if="state === ConversionState.running"
         variant="outlined"
         @click="cancel()"
       >
-        Cancel
+        {{ t('step_convert.cancel') }}
       </RuiButton>
     </div>
 
@@ -167,25 +174,29 @@ onBeforeUnmount(() => {
         :value="progress"
         color="primary"
         show-label
-        aria-label="Conversion progress"
+        :aria-label="t('step_convert.progress.label')"
       />
       <p class="text-sm text-rui-text-secondary">
-        {{ formatSize(stats.bytesRead) }} of {{ formatSize(stats.totalBytes) }} ·
-        {{ number.format(stats.converted) }} converted · {{ number.format(stats.rejected) }} rejected
+        {{ t('step_convert.progress.status', {
+          read: formatSize(stats.bytesRead),
+          total: formatSize(stats.totalBytes),
+          converted: number.format(stats.converted),
+          rejected: number.format(stats.rejected),
+        }) }}
       </p>
     </div>
 
     <RuiAlert
       v-if="state === ConversionState.failed"
       type="error"
-      title="The conversion stopped"
+      :title="t('step_convert.failed_title')"
     >
       <ul class="list-disc pl-4">
         <li
           v-for="problem in problems"
-          :key="problem"
+          :key="messageKey(problem)"
         >
-          {{ problem }}
+          {{ translate(problem) }}
         </li>
       </ul>
     </RuiAlert>
@@ -197,8 +208,8 @@ onBeforeUnmount(() => {
     >
       <RuiAlert
         :type="stats.rejected > 0 ? 'warning' : 'success'"
-        :title="`${number.format(stats.converted)} rows converted`"
-        :description="`${number.format(stats.skipped)} skipped, ${number.format(stats.rejected)} rejected.`"
+        :title="t('step_convert.result.title', { count: number.format(stats.converted) }, stats.converted)"
+        :description="t('step_convert.result.description', { skipped: number.format(stats.skipped), rejected: number.format(stats.rejected) })"
       />
       <div class="flex flex-wrap gap-3">
         <RuiButton
@@ -214,7 +225,7 @@ onBeforeUnmount(() => {
               size="16"
             />
           </template>
-          {{ output.name }} · {{ formatSize(output.size) }}
+          {{ t('common.name_and_size', { name: output.name, size: formatSize(output.size) }) }}
         </RuiButton>
         <RuiButton
           v-if="rejected"
@@ -230,17 +241,27 @@ onBeforeUnmount(() => {
               size="16"
             />
           </template>
-          Rejected rows · {{ formatSize(rejected.size) }}
+          {{ t('step_convert.rejected_download', { size: formatSize(rejected.size) }) }}
         </RuiButton>
       </div>
+      <i18n-t
+        keypath="step_convert.import_help"
+        tag="p"
+        scope="global"
+        class="text-sm text-rui-text-secondary"
+      >
+        <template #import_data>
+          <span class="font-medium text-rui-text">{{ t('step_convert.import_menu.import_data') }}</span>
+        </template>
+        <template #custom_import>
+          <span class="font-medium text-rui-text">{{ t('step_convert.import_menu.custom_import') }}</span>
+        </template>
+        <template #import_format>
+          <span class="font-medium text-rui-text">{{ t('step_convert.import_menu.import_format', { format: recipe.format }) }}</span>
+        </template>
+      </i18n-t>
       <p class="text-sm text-rui-text-secondary">
-        In rotki, open <span class="font-medium text-rui-text">Import Data</span>, pick
-        <span class="font-medium text-rui-text">Custom Import</span>, then
-        <span class="font-medium text-rui-text">Import {{ recipe.format }}</span>, and choose the
-        downloaded file. The rejected file lists each row with the reason in its last column.
-      </p>
-      <p class="text-sm text-rui-text-secondary">
-        Next time this exchange exports, the saved recipe sets every step up for you.
+        {{ t('step_convert.recipe_note') }}
       </p>
       <div class="flex flex-wrap gap-2">
         <RuiButton
@@ -254,14 +275,14 @@ onBeforeUnmount(() => {
               size="16"
             />
           </template>
-          Save recipe
+          {{ t('step_convert.save_recipe') }}
         </RuiButton>
         <RuiButton
           variant="text"
           data-testid="start-conversion"
           @click="convert()"
         >
-          Convert again
+          {{ t('step_convert.start.done') }}
         </RuiButton>
         <RuiButton
           variant="text"
@@ -275,7 +296,7 @@ onBeforeUnmount(() => {
               size="16"
             />
           </template>
-          Convert another file
+          {{ t('step_convert.convert_another') }}
         </RuiButton>
       </div>
     </section>
@@ -296,7 +317,7 @@ onBeforeUnmount(() => {
             size="16"
           />
         </template>
-        Save the recipe without converting
+        {{ t('step_convert.save_recipe_only') }}
       </RuiButton>
     </div>
   </div>

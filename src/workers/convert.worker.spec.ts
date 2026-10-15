@@ -1,7 +1,9 @@
 import type { ConversionMessage } from '@/modules/convert/protocol';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { message, MessageCode } from '@/modules/convert/messages';
 import { type Recipe, serializeRecipe } from '@/modules/convert/recipe';
 import { RotkiFormat } from '@/modules/rotki-format';
+import { englishTexts } from '@/test-utils/messages';
 import { type FakeStorage, installFakeStorage } from '@/test-utils/storage';
 
 const CSV = [
@@ -35,6 +37,7 @@ function request(overrides: Record<string, unknown> = {}): Record<string, unknow
     recipe: JSON.parse(serializeRecipe(recipe)),
     outputName: 'converted.csv',
     rejectedName: 'rejected.csv',
+    texts: englishTexts(),
     ...overrides,
   };
 }
@@ -71,25 +74,25 @@ describe('the conversion worker', () => {
     const reply = await send(request());
     expect(reply).toEqual({ type: 'done', stats: { bytesRead: CSV.length, totalBytes: CSV.length, converted: 1, skipped: 0, rejected: 1 } });
     expect(storage.files.get('converted.csv')).toContain('kraken,EUR,30000,BTC,0.5,');
-    expect(storage.files.get('rejected.csv')).toMatch(/^Date,Base,Quote,Amount,Total,Row,Reason\n.*,3,"Spend Amount ""abc""/);
+    expect(storage.files.get('rejected.csv')).toMatch(/^Date,Base,Quote,Amount,Total,Row,Reason\n.*,3,"Spend Amount ""abc"" is not a number with ""\."" as the decimal separator\."/);
   });
 
   it('refuses a malformed request without touching storage', async () => {
     const reply = await send(request({ outputName: '../escape.csv' }));
-    expect(reply).toEqual({ type: 'failed', message: 'The conversion request names invalid output files.', problems: [] });
+    expect(reply).toEqual({ type: 'failed', problems: [message(MessageCode.requestInvalidOutput)] });
     expect(storage.files.size).toBe(0);
   });
 
   it('lists what keeps the recipe from reading the file', async () => {
     const missing: Recipe = { ...recipe, fields: { ...recipe.fields, 'Spend Currency': { source: { kind: 'column', column: 'Pair' } } } };
     const reply = await send(request({ recipe: JSON.parse(serializeRecipe(missing)) }));
-    expect(reply.type === 'failed' && reply.problems).toEqual(['The file has no column named "Pair".']);
+    expect(reply.type === 'failed' && reply.problems).toEqual([message(MessageCode.missingColumn, { column: 'Pair' })]);
   });
 
   it('explains a browser that refuses storage', async () => {
     storage.refuse = true;
     const reply = await send(request());
-    expect(reply.type === 'failed' && reply.message).toMatch(/^This browser does not let the page store the converted file\./);
+    expect(reply).toEqual({ type: 'failed', problems: [message(MessageCode.noStorage)] });
   });
 
   it('closes the output file when the rejected file cannot be opened', async () => {
@@ -102,7 +105,7 @@ describe('the conversion worker', () => {
   it('closes both files and reports the failure when closing the output fails', async () => {
     storage.failClose.add('converted.csv');
     const reply = await send(request());
-    expect(reply).toEqual({ type: 'failed', message: 'converted.csv is over the quota.', problems: [] });
+    expect(reply).toEqual({ type: 'failed', problems: [message(MessageCode.stoppedWithDetail, { detail: 'converted.csv is over the quota.' })] });
     expect(storage.open.size).toBe(0);
   });
 
@@ -110,7 +113,7 @@ describe('the conversion worker', () => {
     storage.failClose.add('converted.csv');
     const missing: Recipe = { ...recipe, fields: { ...recipe.fields, 'Spend Currency': { source: { kind: 'column', column: 'Pair' } } } };
     const reply = await send(request({ recipe: JSON.parse(serializeRecipe(missing)) }));
-    expect(reply.type === 'failed' && reply.problems).toEqual(['The file has no column named "Pair".']);
+    expect(reply.type === 'failed' && reply.problems).toEqual([message(MessageCode.missingColumn, { column: 'Pair' })]);
     expect(storage.open.size).toBe(0);
   });
 });

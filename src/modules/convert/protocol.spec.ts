@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { RotkiFormat } from '@/modules/rotki-format';
-import { readStartConversion } from './protocol';
+import { englishTexts } from '@/test-utils/messages';
+import { message, MessageCode, MessageError } from './messages';
+import { problemsOf, readStartConversion } from './protocol';
 import { type Recipe, serializeRecipe } from './recipe';
+import { RecipeError } from './row-converter';
 
 const recipe: Recipe = {
   version: 1,
@@ -20,6 +23,7 @@ function request(overrides: Record<string, unknown> = {}): Record<string, unknow
     recipe: JSON.parse(serializeRecipe(recipe)),
     outputName: 'converted.csv',
     rejectedName: 'rejected.csv',
+    texts: englishTexts(),
     ...overrides,
   };
 }
@@ -29,18 +33,36 @@ describe('readStartConversion', () => {
     const result = readStartConversion(request());
     expect(result.ok).toBe(true);
     expect(result.ok && result.value.recipe).toEqual(recipe);
+    expect(result.ok && result.value.texts).toEqual(englishTexts());
   });
 
+  const missingReason = Object.fromEntries(Object.entries(englishTexts().reasons).filter(([code]) => code !== MessageCode.columnEmpty));
+
   it.each([
-    ['nothing', undefined, 'The conversion request is not an object.'],
-    ['a string', 'start', 'The conversion request is not an object.'],
-    ['another type', request({ type: 'stop' }), 'The conversion request has an unknown type.'],
-    ['no file', request({ file: 'data.csv' }), 'The conversion request carries no file.'],
-    ['a path as output', request({ outputName: '../converted.csv' }), 'The conversion request names invalid output files.'],
-    ['a non csv output', request({ rejectedName: 'rejected.txt' }), 'The conversion request names invalid output files.'],
-    ['one name for both outputs', request({ rejectedName: 'converted.csv' }), 'The conversion request names invalid output files.'],
-    ['no recipe', request({ recipe: undefined }), 'The file is not a migration assistant recipe.'],
-  ])('rejects %s', (_, data, error) => {
-    expect(readStartConversion(data)).toEqual({ ok: false, error });
+    ['nothing', undefined, MessageCode.requestNotObject],
+    ['a string', 'start', MessageCode.requestNotObject],
+    ['another type', request({ type: 'stop' }), MessageCode.requestUnknownType],
+    ['no file', request({ file: 'data.csv' }), MessageCode.requestNoFile],
+    ['a path as output', request({ outputName: '../converted.csv' }), MessageCode.requestInvalidOutput],
+    ['a non csv output', request({ rejectedName: 'rejected.txt' }), MessageCode.requestInvalidOutput],
+    ['one name for both outputs', request({ rejectedName: 'converted.csv' }), MessageCode.requestInvalidOutput],
+    ['no texts', request({ texts: undefined }), MessageCode.requestInvalidTexts],
+    ['a missing reason text', request({ texts: { ...englishTexts(), reasons: missingReason } }), MessageCode.requestInvalidTexts],
+    ['no recipe', request({ recipe: undefined }), MessageCode.notRecipe],
+  ])('rejects %s', (_, data, code) => {
+    expect(readStartConversion(data)).toEqual({ ok: false, error: message(code) });
+  });
+});
+
+describe('problemsOf', () => {
+  it('keeps the messages of our own errors', () => {
+    const missing = message(MessageCode.missingColumn, { column: 'Pair' });
+    expect(problemsOf(new RecipeError([missing]))).toEqual([missing]);
+    expect(problemsOf(new MessageError(message(MessageCode.noStorage)))).toEqual([message(MessageCode.noStorage)]);
+  });
+
+  it('keeps the text of a browser error as the detail', () => {
+    expect(problemsOf(new DOMException('Quota exceeded.'))).toEqual([message(MessageCode.stoppedWithDetail, { detail: 'Quota exceeded.' })]);
+    expect(problemsOf('boom')).toEqual([message(MessageCode.stopped)]);
   });
 });

@@ -1,5 +1,8 @@
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n';
 import { buildLinks } from '@/modules/build-info';
+
+const { t } = useI18n({ useScope: 'global' });
 
 const { attestationsUrl, buildRunUrl, commitUrl, releaseUrl, repositoryUrl, shortSha, version } = buildLinks;
 
@@ -13,16 +16,15 @@ const years = buildYear > FIRST_YEAR ? `${FIRST_YEAR}-${buildYear}` : String(FIR
     <div class="max-w-5xl mx-auto px-4 py-6 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
       <div class="flex flex-col gap-1">
         <p>
-          Your files never leave this page. It has no server to send them to, and its
-          content security policy blocks every network request.
+          {{ t('footer.privacy') }}
         </p>
         <p data-testid="copyright">
-          © Rotki Solutions GmbH {{ years }}.
+          {{ t('footer.copyright', { years }) }}
         </p>
       </div>
       <nav
         class="flex flex-wrap items-center gap-x-4 gap-y-1 shrink-0 whitespace-nowrap"
-        aria-label="Source and deployment"
+        :aria-label="t('footer.nav_label')"
       >
         <a
           :href="repositoryUrl"
@@ -30,7 +32,7 @@ const years = buildYear > FIRST_YEAR ? `${FIRST_YEAR}-${buildYear}` : String(FIR
           rel="noopener noreferrer"
           class="text-rui-link"
         >
-          Source code (AGPL-3.0)
+          {{ t('footer.source_code') }}
         </a>
         <a
           v-if="releaseUrl"
@@ -60,7 +62,7 @@ const years = buildYear > FIRST_YEAR ? `${FIRST_YEAR}-${buildYear}` : String(FIR
           class="text-rui-link"
           data-testid="build-run"
         >
-          Deployment build
+          {{ t('footer.deployment_build') }}
         </a>
         <a
           v-if="buildRunUrl"
@@ -70,7 +72,7 @@ const years = buildYear > FIRST_YEAR ? `${FIRST_YEAR}-${buildYear}` : String(FIR
           class="text-rui-link"
           data-testid="build-attestations"
         >
-          Provenance
+          {{ t('footer.provenance') }}
         </a>
       </nav>
     </div>

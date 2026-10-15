@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { parseCsv } from '@/modules/csv/parser';
 import { RotkiFormat } from '@/modules/rotki-format';
+import { englishTexts } from '@/test-utils/messages';
 import { type ConversionStats, convertStream, type TextSink } from './convert-stream';
+import { message, MessageCode, MessageError, type RejectedFileTexts } from './messages';
 import { type Recipe, SKIP_ROW } from './recipe';
 import { RecipeError } from './row-converter';
 
@@ -51,7 +53,7 @@ function collector(): TextSink & { text: () => string } {
   return { write: text => parts.push(text), text: () => parts.join('') };
 }
 
-async function run(input: string, chunkSize: number, options: Partial<Recipe> = {}): Promise<{ stats: ConversionStats; output: string; rejected: string; progress: number[] }> {
+async function run(input: string, chunkSize: number, options: Partial<Recipe> = {}, texts: RejectedFileTexts = englishTexts()): Promise<{ stats: ConversionStats; output: string; rejected: string; progress: number[] }> {
   const bytes = new TextEncoder().encode(input);
   const output = collector();
   const rejected = collector();
@@ -62,6 +64,7 @@ async function run(input: string, chunkSize: number, options: Partial<Recipe> = 
     recipe: { ...recipe, ...options },
     output,
     rejected,
+    texts,
     onProgress: update => progress.push(update.bytesRead),
   });
   return { stats, output: output.text(), rejected: rejected.text(), progress };
@@ -96,6 +99,18 @@ describe('convertStream', () => {
   });
 
   it('stops when the file ends before its header', async () => {
-    await expect(run('Exported ledger', 64)).rejects.toThrowError('The file ended before its header row.');
+    await expect(run('Exported ledger', 64)).rejects.toThrowError(new MessageError(message(MessageCode.noHeader)));
+  });
+
+  it('writes the rejected file in the texts it is given', async () => {
+    const texts = englishTexts();
+    texts.row = 'Fila';
+    texts.reason = 'Motivo';
+    texts.reasons[MessageCode.unknownType] = 'Tipo "{value}" desconocido.';
+    const { rejected } = await run(FILE, 64, {}, texts);
+    expect(parseCsv(rejected, ',')).toEqual([
+      ['Time', 'Kind', 'Asset', 'Amount', 'Note', 'Fila', 'Motivo'],
+      ['1709641817', 'airdrop', 'XYZ', '5', 'multi\r\nline', '5', 'Tipo "airdrop" desconocido.'],
+    ]);
   });
 });
