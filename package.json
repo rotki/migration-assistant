@@ -2,7 +2,7 @@
   "name": "@rotki/migration-assistant",
   "version": "0.1.0",
   "private": true,
-  "packageManager": "pnpm@12.6.0",
+  "packageManager": "pnpm@12.10.1",
   "description": "Convert exchange CSV history to rotki's import format, entirely in your browser",
   "type": "module",
   "license": "AGPL-3.0",
@@ -33,8 +33,8 @@
     "dayjs": "1.11.23",
     "plainfp": "0.1.1",
     "vue": "3.5.43",
-    "vue-i18n": "11.4.12",
-    "vue-router": "5.3.1"
+    "vue-i18n": "11.4.13",
+    "vue-router": "5.4.0"
   },
   "devDependencies": {
     "@commitlint/cli": "21.2.3",
@@ -43,7 +43,7 @@
     "@fontsource-variable/inter": "5.3.0",
     "@intlify/eslint-plugin-vue-i18n": "4.5.1",
     "@intlify/unplugin-vue-i18n": "11.2.5",
-    "@playwright/test": "1.63.0",
+    "@playwright/test": "1.64.0",
     "@rotki/eslint-config": "8.3.0",
     "@rotki/eslint-plugin": "1.8.0",
     "@tailwindcss/vite": "4.3.3",
@@ -63,7 +63,7 @@
     "lint-staged": "17.6.0",
     "tailwindcss": "4.3.3",
     "typescript": "6.0.3",
-    "vite": "8.3.2",
+    "vite": "8.3.3",
     "vite-ssg": "28.3.0",
     "vitest": "5.0.3",
     "vue-tsc": "3.3.12",
