@@ -168,6 +168,19 @@ test('convert another file starts with an empty upload field', async ({ page }) 
   await expect(page.getByTestId('detected-settings')).toBeVisible();
 });
 
+test('points to rotki\'s own importer for a file it reads as is', async ({ page }) => {
+  await page.goto('convert');
+  await page.locator('input[type=file]:not([data-testid=recipe-file])').setInputFiles({
+    name: 'binance.csv',
+    mimeType: 'text/csv',
+    buffer: Buffer.from('User_ID,UTC_Time,Account,Operation,Coin,Change,Remark\n1,2024-03-05 12:30:00,Spot,Deposit,ETH,1.5,\n'),
+  });
+  await expect(page.getByTestId('native-importer')).toContainText('Import Data → Binance');
+
+  await loadCsv(page, 'exchange-ledger.csv');
+  await expect(page.getByTestId('native-importer')).toHaveCount(0);
+});
+
 test('converts a 400,000 row file through the worker', async ({ page }) => {
   const header = 'Date,Type,Asset,Amount\n';
   const rows: string[] = [];
