@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { RuiMenuSelect, RuiTextField } from '@rotki/ui-library';
 import { computed } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { SKIP_ROW } from '@/modules/convert/recipe';
 import { distinctValues } from '@/modules/convert/suggest';
 import { ROTKI_EVENT_TYPES } from '@/modules/rotki-format';
@@ -14,13 +15,15 @@ const { values: samples, mode } = defineProps<{
   mode: ValueMapMode;
 }>();
 
+const { t } = useI18n({ useScope: 'global' });
+
 const KEEP = '__keep__';
 
-const typeOptions = [
+const typeOptions = computed<{ id: string; label: string }[]>(() => [
   ...ROTKI_EVENT_TYPES.map(type => ({ id: type, label: type })),
-  { id: SKIP_ROW, label: 'Skip these rows' },
-  { id: KEEP, label: 'Not mapped (rejected)' },
-];
+  { id: SKIP_ROW, label: t('value_map.skip') },
+  { id: KEEP, label: t('value_map.not_mapped') },
+]);
 
 const entries = computed<{ value: string; count: number }[]>(() => distinctValues(samples).filter(entry => entry.value !== ''));
 
@@ -56,16 +59,14 @@ function update(value: string, next: string | undefined): void {
       v-if="entries.length === 0"
       class="text-sm text-rui-text-secondary"
     >
-      No values in the sample yet.
+      {{ t('value_map.empty') }}
     </p>
     <p
       v-if="unmapped.values > 0"
       class="rounded-md bg-rui-warning-subtle px-3 py-2 text-sm text-rui-text"
       data-testid="value-map-unmapped"
     >
-      {{ unmapped.values }} {{ unmapped.values === 1 ? 'value is' : 'values are' }} not mapped yet, so
-      {{ unmapped.rows }} {{ unmapped.rows === 1 ? 'row' : 'rows' }} of the sample would be rejected. Pick a
-      type, or skip them if rotki should not import them.
+      {{ t('value_map.unmapped', { values: t('value_map.unmapped_values', unmapped.values), rows: t('common.rows', unmapped.rows) }) }}
     </p>
     <div
       v-for="entry in entries"
@@ -76,7 +77,7 @@ function update(value: string, next: string | undefined): void {
     >
       <span class="flex min-w-0 flex-col text-sm">
         <span class="break-words">{{ entry.value }}</span>
-        <span class="text-xs text-rui-text-secondary">{{ entry.count }} {{ entry.count === 1 ? 'row' : 'rows' }} in the sample</span>
+        <span class="text-xs text-rui-text-secondary">{{ t('value_map.in_sample', entry.count) }}</span>
       </span>
       <RuiMenuSelect
         v-if="mode === ValueMapMode.type"
@@ -87,7 +88,7 @@ function update(value: string, next: string | undefined): void {
         dense
         hide-details
         label-placement="hidden"
-        :label="`rotki type for ${entry.value}`"
+        :label="t('value_map.type_label', { value: entry.value })"
         @update:model-value="update(entry.value, $event)"
       />
       <RuiTextField
@@ -96,8 +97,8 @@ function update(value: string, next: string | undefined): void {
         dense
         hide-details
         label-placement="hidden"
-        :label="`Rename ${entry.value}`"
-        placeholder="Keep as is"
+        :label="t('value_map.rename_label', { value: entry.value })"
+        :placeholder="t('value_map.keep_placeholder')"
         @update:model-value="update(entry.value, $event)"
       />
     </div>

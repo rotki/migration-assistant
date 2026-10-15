@@ -2,29 +2,35 @@
 import type { SampleReading } from '@/modules/wizard/types';
 import { RuiAlert, RuiMenuSelect, RuiRadio, RuiRadioGroup, RuiTextField, RuiTimezoneSelect } from '@rotki/ui-library';
 import { computed } from 'vue';
-import { DATE_FORMAT_CANDIDATES, DateFormat, describeDateFormat, parseDate } from '@/modules/convert/dates';
+import { useI18n } from 'vue-i18n';
+import { DATE_FORMAT_CANDIDATES, DateFormat, parseDate } from '@/modules/convert/dates';
 import { normalizeDecimal } from '@/modules/convert/numbers';
 import { AMOUNT_COLUMNS, SourceKind } from '@/modules/convert/recipe';
+import { useMessages } from '@/modules/convert/use-messages';
 import { RotkiColumn } from '@/modules/rotki-format';
 import { useWizard } from '@/modules/wizard/use-wizard';
 import SampleReadings from './SampleReadings.vue';
 
+const { locale, t } = useI18n({ useScope: 'global' });
+const { dateFormatName } = useMessages();
 const { columnSamples, dateFormats, recipe } = useWizard();
-
-const EXAMPLES: Record<string, string> = {
-  [DateFormat.iso]: 'such as 2024-03-05 12:30:15 or 2024-03-05T12:30:15Z',
-  [DateFormat.unixSeconds]: 'Unix time',
-};
 
 const CUSTOM = '__custom__';
 
+/** Option labels, with an example where the name alone does not show the shape. */
+const optionLabels = computed<Record<string, string>>(() => ({
+  [DateFormat.iso]: t('step_formats.date_format.options.iso'),
+  [DateFormat.unixSeconds]: t('step_formats.date_format.options.unix_s'),
+  [DateFormat.unixMilliseconds]: t('step_formats.date_format.options.unix_ms'),
+} satisfies Record<DateFormat, string>));
+
+function list(formats: string[], type: Intl.ListFormatType): string {
+  return new Intl.ListFormat(locale.value, { type, style: 'long' }).format(formats.map(dateFormatName));
+}
+
 const formatOptions = computed(() => [
-  ...DATE_FORMAT_CANDIDATES.map((id) => {
-    const example = EXAMPLES[id];
-    const name = describeDateFormat(id);
-    return { id, label: example ? `${name[0]?.toUpperCase()}${name.slice(1)}, ${example}` : name };
-  }),
-  { id: CUSTOM, label: 'Custom pattern' },
+  ...DATE_FORMAT_CANDIDATES.map(id => ({ id, label: optionLabels.value[id] ?? id })),
+  { id: CUSTOM, label: t('step_formats.date_format.custom') },
 ]);
 
 const isCustom = computed<boolean>(() => !DATE_FORMAT_CANDIDATES.includes(recipe.value.dates.format));
@@ -42,10 +48,13 @@ const isAmbiguous = computed<boolean>(() => dateFormats.value.length > 1);
 const formatHint = computed<string>(() => {
   const formats = dateFormats.value;
   if (formats.length === 0)
-    return 'No format matches the dates in the sample.';
+    return t('step_formats.date_format.hint.none');
   if (!formats.includes(recipe.value.dates.format))
-    return `The sample matches ${formats.map(describeDateFormat).join(' or ')}.`;
-  return formats.length === 1 ? 'Matches every date in the sample.' : `Also matches ${formats.filter(format => format !== recipe.value.dates.format).map(describeDateFormat).join(', ')}.`;
+    return t('step_formats.date_format.hint.sample_matches', { formats: list(formats, 'disjunction') });
+  if (formats.length === 1)
+    return t('step_formats.date_format.hint.matches_all');
+  const others = formats.filter(format => format !== recipe.value.dates.format);
+  return t('step_formats.date_format.hint.also_matches', { formats: list(others, 'unit') });
 });
 
 function distinctSamples(column: string | undefined, limit: number): string[] {
@@ -73,16 +82,16 @@ const amountReadings = computed<SampleReading[]>(() => {
   <div class="flex flex-col gap-6">
     <section
       class="flex flex-col gap-4 rounded-md border border-rui-divider p-4"
-      aria-label="Dates"
+      :aria-label="t('step_formats.dates')"
     >
       <h2 class="text-sm font-semibold uppercase tracking-wide text-rui-text-secondary">
-        Dates
+        {{ t('step_formats.dates') }}
       </h2>
       <RuiAlert
         v-if="isAmbiguous"
         type="warning"
-        title="Check the day and month order"
-        :description="`The sample fits ${dateFormats.length} formats that read the dates differently, for example day-first and month-first. Pick the one your exchange uses.`"
+        :title="t('step_formats.ambiguous.title')"
+        :description="t('step_formats.ambiguous.description', { count: dateFormats.length }, dateFormats.length)"
       />
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <RuiMenuSelect
@@ -90,56 +99,56 @@ const amountReadings = computed<SampleReading[]>(() => {
           :options="formatOptions"
           key-attr="id"
           text-attr="label"
-          label="Date format"
+          :label="t('step_formats.date_format.label')"
           :hint="formatHint"
           data-testid="date-format"
         />
         <RuiTimezoneSelect
           v-model="recipe.dates.timeZone"
-          label="Time zone of the export"
-          hint="Used when a date carries no offset. Many exchanges export in UTC."
+          :label="t('step_formats.time_zone.label')"
+          :hint="t('step_formats.time_zone.hint')"
         />
       </div>
       <RuiTextField
         v-if="isCustom"
         v-model="recipe.dates.format"
-        label="Pattern"
-        hint="Tokens: YYYY MM M DD D HH H hh h mm ss SSS A MMM. Put words in brackets, as [at]. Anything else must match as written."
+        :label="t('step_formats.pattern.label')"
+        :hint="t('step_formats.pattern.hint')"
       />
       <SampleReadings
         v-if="dateReadings.length > 0"
         :readings="dateReadings"
-        unreadable="does not match"
+        :unreadable="t('step_formats.unreadable.date')"
         data-testid="date-readings"
       />
     </section>
 
     <section
       class="flex flex-col gap-4 rounded-md border border-rui-divider p-4"
-      aria-label="Numbers"
+      :aria-label="t('step_formats.numbers')"
     >
       <h2 class="text-sm font-semibold uppercase tracking-wide text-rui-text-secondary">
-        Numbers
+        {{ t('step_formats.numbers') }}
       </h2>
       <RuiRadioGroup
         v-model="recipe.numbers.decimalSeparator"
-        label="Decimal separator"
+        :label="t('step_formats.decimal_separator.label')"
         inline
         hide-details
       >
         <RuiRadio
           value="."
-          label="Dot: 1,234.56"
+          :label="t('step_formats.decimal_separator.dot')"
         />
         <RuiRadio
           value=","
-          label="Comma: 1.234,56"
+          :label="t('step_formats.decimal_separator.comma')"
         />
       </RuiRadioGroup>
       <SampleReadings
         v-if="amountReadings.length > 0"
         :readings="amountReadings"
-        unreadable="not a number with this separator"
+        :unreadable="t('step_formats.unreadable.number')"
         data-testid="amount-readings"
       />
     </section>

@@ -2,6 +2,7 @@
 import { RuiButton, RuiIcon } from '@rotki/ui-library';
 import { useHead } from '@unhead/vue';
 import { type Component, computed, nextTick, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
 import StepConvert from '@/components/wizard/StepConvert.vue';
 import StepFile from '@/components/wizard/StepFile.vue';
 import StepFormats from '@/components/wizard/StepFormats.vue';
@@ -11,6 +12,7 @@ import StepPreview from '@/components/wizard/StepPreview.vue';
 import StepTarget from '@/components/wizard/StepTarget.vue';
 import { SourceKind } from '@/modules/convert/recipe';
 import { RowKind } from '@/modules/convert/row-converter';
+import { useMessages } from '@/modules/convert/use-messages';
 import { RotkiColumn } from '@/modules/rotki-format';
 import { provideWizard } from '@/modules/wizard/use-wizard';
 
@@ -20,40 +22,49 @@ interface Step {
   component: Component;
 }
 
-useHead({ title: 'Convert' });
+const { t } = useI18n({ useScope: 'global' });
+const { translate } = useMessages();
+
+useHead({ title: () => t('convert_page.title') });
 
 const { dateFormats, file, header, preview, recipe, step: current } = provideWizard();
 
-const steps: Step[] = [
-  { title: 'Choose file', description: 'Pick the CSV your exchange exported.', component: StepFile },
-  { title: 'rotki format', description: 'Choose what the rows describe.', component: StepTarget },
-  { title: 'Map columns', description: 'Tell the converter where each value rotki needs comes from.', component: StepMapping },
-  { title: 'Dates and numbers', description: 'Check how the export writes dates and decimals.', component: StepFormats },
-  { title: 'Preview', description: 'See what rotki will import from the first rows.', component: StepPreview },
-  { title: 'Convert', description: 'Convert the whole file and download the result.', component: StepConvert },
-];
+const steps = computed<Step[]>(() => [
+  { title: t('convert_page.steps.file.title'), description: t('convert_page.steps.file.description'), component: StepFile },
+  { title: t('convert_page.steps.target.title'), description: t('convert_page.steps.target.description'), component: StepTarget },
+  { title: t('convert_page.steps.mapping.title'), description: t('convert_page.steps.mapping.description'), component: StepMapping },
+  { title: t('convert_page.steps.formats.title'), description: t('convert_page.steps.formats.description'), component: StepFormats },
+  { title: t('convert_page.steps.preview.title'), description: t('convert_page.steps.preview.description'), component: StepPreview },
+  { title: t('convert_page.steps.convert.title'), description: t('convert_page.steps.convert.description'), component: StepConvert },
+]);
 
-const titles = steps.map(step => step.title);
+const titles = computed<string[]>(() => steps.value.map(step => step.title));
+
+/** The first thing keeping the recipe from converting the file, in the page's language. */
+const firstProblem = computed<string | undefined>(() => {
+  const [problem] = preview.value.problems;
+  return problem && translate(problem);
+});
 
 /** Why the user cannot go on from the current step, if anything stops them. */
 const blocker = computed<string | undefined>(() => {
   switch (current.value) {
     case 0:
-      return file.value && header.value.length > 1 ? undefined : 'Choose a CSV file with at least two columns.';
+      return file.value && header.value.length > 1 ? undefined : t('convert_page.blocker.no_file');
     case 2:
-      return preview.value.problems[0];
+      return firstProblem.value;
     case 3:
       return recipe.value.fields[RotkiColumn.timestamp]?.source.kind === SourceKind.column && dateFormats.value.length === 0
         && !preview.value.rows.some(row => row.result.kind === RowKind.converted)
-        ? 'No date in the sample matches this format.'
+        ? t('convert_page.blocker.no_date_match')
         : undefined;
     default:
       return undefined;
   }
 });
 
-const isLast = computed<boolean>(() => current.value === steps.length - 1);
-const activeStep = computed<Step>(() => steps[current.value] ?? steps[0]!);
+const isLast = computed<boolean>(() => current.value === steps.value.length - 1);
+const activeStep = computed<Step>(() => steps.value[current.value] ?? steps.value[0]!);
 
 function next(): void {
   if (!blocker.value && !isLast.value)
@@ -111,7 +122,7 @@ watch(current, async () => {
               size="16"
             />
           </template>
-          Back
+          {{ t('convert_page.back') }}
         </RuiButton>
         <div class="flex items-center gap-3">
           <span
@@ -128,7 +139,7 @@ watch(current, async () => {
             data-testid="wizard-next"
             @click="next()"
           >
-            Next
+            {{ t('convert_page.next') }}
             <template #append>
               <RuiIcon
                 name="lu-arrow-right"

@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { RuiButton, RuiCard, RuiIcon, type RuiIcons } from '@rotki/ui-library';
 import { useHead } from '@unhead/vue';
+import { computed } from 'vue';
+import { useI18n } from 'vue-i18n';
 
 interface Feature {
   icon: RuiIcons;
@@ -8,37 +10,48 @@ interface Feature {
   description: string;
 }
 
-useHead({ title: 'Convert exchange history for rotki' });
+const { t } = useI18n({ useScope: 'global' });
 
-const features: Feature[] = [
+/** The directive as the policy writes it; not translated. */
+const CONNECT_POLICY = `connect-src 'none'`;
+
+useHead({ title: () => t('index_page.title') });
+
+const features = computed<Feature[]>(() => [
   {
     icon: 'lu-lock',
-    title: 'Stays on your device',
-    description: 'Files are read and converted inside this tab. Nothing is uploaded, and the page is not allowed to make network requests.',
+    title: t('index_page.features.on_device.title'),
+    description: t('index_page.features.on_device.description'),
   },
   {
     icon: 'lu-file-spreadsheet',
-    title: 'Any exchange export',
-    description: 'Pick which column holds what, step by step. Save the mapping and reuse it when the exchange moves its columns around.',
+    title: t('index_page.features.any_export.title'),
+    description: t('index_page.features.any_export.description'),
   },
   {
     icon: 'lu-hard-drive',
-    title: 'Large files welcome',
-    description: 'Rows stream from your disk and the result goes back to it, so memory does not grow with the file. A 1 GB export converts in under a minute and a half.',
+    title: t('index_page.features.large_files.title'),
+    description: t('index_page.features.large_files.description'),
   },
-];
+]);
 </script>
 
 <template>
   <div class="flex flex-col gap-10">
     <section class="flex flex-col gap-4 pt-4">
       <h1 class="text-3xl sm:text-4xl font-semibold">
-        Bring your exchange history into rotki
+        {{ t('index_page.heading') }}
       </h1>
-      <p class="text-lg text-rui-text-secondary max-w-3xl">
-        Turn a CSV export from any exchange into rotki's generic trades or events format,
-        ready for <span class="font-medium text-rui-text">Import Data → Custom Import</span> in rotki.
-      </p>
+      <i18n-t
+        keypath="index_page.intro"
+        tag="p"
+        scope="global"
+        class="text-lg text-rui-text-secondary max-w-3xl"
+      >
+        <template #menu>
+          <span class="font-medium text-rui-text">{{ t('index_page.intro_menu') }}</span>
+        </template>
+      </i18n-t>
       <div class="w-fit">
         <RouterLink
           #default="{ href, navigate }"
@@ -51,7 +64,7 @@ const features: Feature[] = [
             color="primary"
             @click="navigate($event)"
           >
-            Start converting
+            {{ t('index_page.start') }}
             <template #append>
               <RuiIcon
                 name="lu-arrow-right"
@@ -66,7 +79,7 @@ const features: Feature[] = [
     <section class="grid grid-cols-1 md:grid-cols-3 gap-4">
       <RuiCard
         v-for="feature in features"
-        :key="feature.title"
+        :key="feature.icon"
       >
         <div class="flex flex-col gap-2">
           <RuiIcon
@@ -85,16 +98,18 @@ const features: Feature[] = [
 
     <section class="flex flex-col gap-2 max-w-3xl">
       <h2 class="text-xl font-semibold">
-        Check it yourself
+        {{ t('index_page.verify.heading') }}
       </h2>
-      <p class="text-rui-text-secondary">
-        Open your browser's developer tools on the Network tab while you convert a file:
-        no request goes out. The page ships a content security policy with
-        <code class="font-mono text-sm">connect-src 'none'</code>, so the browser would block one
-        even if the code tried. The footer links the release, the exact commit and the build
-        that produced this deployment, and each release carries a copy of the site with a build
-        attestation you can verify.
-      </p>
+      <i18n-t
+        keypath="index_page.verify.body"
+        tag="p"
+        scope="global"
+        class="text-rui-text-secondary"
+      >
+        <template #policy>
+          <code class="font-mono text-sm">{{ CONNECT_POLICY }}</code>
+        </template>
+      </i18n-t>
     </section>
   </div>
 </template>

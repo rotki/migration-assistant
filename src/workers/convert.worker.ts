@@ -1,7 +1,7 @@
 /// <reference lib="webworker" />
 import { type ConversionStats, convertStream, type TextSink } from '@/modules/convert/convert-stream';
-import { type ConversionMessage, MessageType, OUTPUT_DIRECTORY, readStartConversion, type StartConversion } from '@/modules/convert/protocol';
-import { RecipeError } from '@/modules/convert/row-converter';
+import { message, MessageCode, MessageError } from '@/modules/convert/messages';
+import { type ConversionMessage, MessageType, OUTPUT_DIRECTORY, problemsOf, readStartConversion, type StartConversion } from '@/modules/convert/protocol';
 
 declare const self: DedicatedWorkerGlobalScope;
 
@@ -52,14 +52,8 @@ function post(message: ConversionMessage): void {
 }
 
 function postFailure(error: unknown): void {
-  post({
-    type: MessageType.failed,
-    message: error instanceof Error ? error.message : String(error),
-    problems: error instanceof RecipeError ? error.problems : [],
-  });
+  post({ type: MessageType.failed, problems: problemsOf(error) });
 }
-
-const NO_STORAGE = 'This browser does not let the page store the converted file. Private windows often block it; open the page in a normal window and try again.';
 
 /** Opens both output files, turning a refused storage request into an explanation. */
 async function openSinks(outputName: string, rejectedName: string): Promise<[FileSink, FileSink]> {
@@ -76,7 +70,7 @@ async function openSinks(outputName: string, rejectedName: string): Promise<[Fil
       output?.close();
     }
     catch {}
-    throw new Error(NO_STORAGE, { cause: error });
+    throw new MessageError(message(MessageCode.noStorage), { cause: error });
   }
 }
 
@@ -95,7 +89,7 @@ function closeAll(sinks: FileSink[]): void {
     throw failures[0];
 }
 
-async function start({ file, recipe, outputName, rejectedName }: StartConversion): Promise<void> {
+async function start({ file, recipe, outputName, rejectedName, texts }: StartConversion): Promise<void> {
   const [output, rejected] = await openSinks(outputName, rejectedName);
   let lastProgress = 0;
 
@@ -107,6 +101,7 @@ async function start({ file, recipe, outputName, rejectedName }: StartConversion
       recipe,
       output,
       rejected,
+      texts,
       onProgress(update: ConversionStats): void {
         const now = performance.now();
         if (now - lastProgress >= PROGRESS_INTERVAL) {
@@ -145,7 +140,7 @@ function onMessage(event: MessageEvent<unknown>): void {
   if (request.ok)
     start(request.value).catch(postFailure);
   else
-    postFailure(new Error(request.error));
+    postFailure(new MessageError(request.error));
 }
 
 self.addEventListener('message', onMessage);

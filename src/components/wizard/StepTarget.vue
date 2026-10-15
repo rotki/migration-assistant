@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { RuiIcon, type RuiIcons } from '@rotki/ui-library';
-import { nextTick, useTemplateRef } from 'vue';
+import { computed, nextTick, useTemplateRef } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { RotkiFormat } from '@/modules/rotki-format';
 import { useWizard } from '@/modules/wizard/use-wizard';
 
@@ -12,24 +13,25 @@ interface Choice {
   example: string;
 }
 
+const { t } = useI18n({ useScope: 'global' });
 const { recipe, setFormat, suggestedFormat } = useWizard();
 
-const choices: Choice[] = [
+const choices = computed<Choice[]>(() => [
   {
     format: RotkiFormat.trades,
     icon: 'lu-arrow-left-right',
-    title: 'Trades',
-    description: 'Each row swaps one asset for another: buys, sells, conversions.',
-    example: 'Spent 30,000 EUR, received 0.5 BTC',
+    title: t('step_target.choices.trades.title'),
+    description: t('step_target.choices.trades.description'),
+    example: t('step_target.choices.trades.example'),
   },
   {
     format: RotkiFormat.events,
     icon: 'lu-list',
-    title: 'Events',
-    description: 'Each row moves one asset: deposits, withdrawals, staking rewards, income, losses.',
-    example: 'Received 0.01 ETH as a staking reward',
+    title: t('step_target.choices.events.title'),
+    description: t('step_target.choices.events.description'),
+    example: t('step_target.choices.events.example'),
   },
-];
+]);
 
 const group = useTemplateRef<HTMLElement>('group');
 
@@ -41,8 +43,9 @@ async function onKeydown(event: KeyboardEvent): Promise<void> {
   if (step === undefined)
     return;
   event.preventDefault();
-  const current = choices.findIndex(choice => choice.format === recipe.value.format);
-  const next = choices[(current + step + choices.length) % choices.length];
+  const options = choices.value;
+  const current = options.findIndex(choice => choice.format === recipe.value.format);
+  const next = options[(current + step + options.length) % options.length];
   if (!next)
     return;
   setFormat(next.format);
@@ -57,7 +60,7 @@ async function onKeydown(event: KeyboardEvent): Promise<void> {
       ref="group"
       class="grid grid-cols-1 md:grid-cols-2 gap-4"
       role="radiogroup"
-      aria-label="rotki format"
+      :aria-label="t('step_target.label')"
       @keydown="onKeydown($event)"
     >
       <button
@@ -95,7 +98,7 @@ async function onKeydown(event: KeyboardEvent): Promise<void> {
             class="rounded bg-rui-primary-soft px-1.5 py-0.5 text-xs font-medium text-rui-primary"
             :data-testid="`suggested-${choice.format}`"
           >
-            Suggested for this file
+            {{ t('step_target.suggested') }}
           </span>
         </span>
         <span class="text-sm text-rui-text-secondary">{{ choice.description }}</span>
@@ -108,8 +111,7 @@ async function onKeydown(event: KeyboardEvent): Promise<void> {
         size="16"
         class="mt-0.5 shrink-0"
       />
-      rotki imports trades and events from separate files. If your export mixes both, convert it
-      twice and skip the other kind of row each time.
+      {{ t('step_target.separate_files') }}
     </p>
   </div>
 </template>

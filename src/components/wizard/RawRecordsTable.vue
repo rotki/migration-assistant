@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
+import { useI18n } from 'vue-i18n';
 
 /** The index of the record that holds the column names. */
 const headerIndex = defineModel<number>('headerIndex', { required: true });
@@ -8,6 +9,8 @@ const { records } = defineProps<{
   /** Records as parsed, preamble included. */
   records: string[][];
 }>();
+
+const { t } = useI18n({ useScope: 'global' });
 
 const width = computed<number>(() => Math.max(1, ...records.map(record => record.length)));
 
@@ -42,7 +45,7 @@ function rowClass(index: number): Record<string, boolean> {
               v-if="index === headerIndex"
               class="rounded bg-rui-primary px-1.5 py-0.5 font-sans text-xs font-medium text-rui-primary-foreground"
             >
-              Header
+              {{ t('raw_records.header') }}
             </span>
             <template v-else>
               {{ index + 1 }}

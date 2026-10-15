@@ -1,13 +1,16 @@
 <script setup lang="ts">
 import { RuiIcon } from '@rotki/ui-library';
+import { useI18n } from 'vue-i18n';
 
 const current = defineModel<number>({ required: true });
 
 const { titles } = defineProps<{ titles: string[] }>();
+
+const { t } = useI18n({ useScope: 'global' });
 </script>
 
 <template>
-  <nav aria-label="Conversion steps">
+  <nav :aria-label="t('step_nav.label')">
     <ol class="flex flex-wrap items-center gap-x-1 gap-y-2 text-sm">
       <li
         v-for="(title, index) in titles"

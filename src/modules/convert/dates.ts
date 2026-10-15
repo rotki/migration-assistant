@@ -21,17 +21,6 @@ export const DateFormat = {
 
 export type DateFormat = (typeof DateFormat)[keyof typeof DateFormat];
 
-const FORMAT_NAMES: Record<string, string> = {
-  [DateFormat.iso]: 'ISO 8601',
-  [DateFormat.unixSeconds]: 'seconds since 1970',
-  [DateFormat.unixMilliseconds]: 'milliseconds since 1970',
-} satisfies Record<DateFormat, string>;
-
-/** A date format as people read it: `ISO 8601` for `iso`, a pattern as written. */
-export function describeDateFormat(format: string): string {
-  return FORMAT_NAMES[format] ?? format;
-}
-
 /** Candidates tried by detection, most specific first. */
 export const DATE_FORMAT_CANDIDATES: readonly string[] = [
   DateFormat.iso,

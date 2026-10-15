@@ -1,0 +1,371 @@
+{
+  "app": {
+    "description": "Convert exchange CSV history to rotki's import format. Everything runs in your browser, nothing is uploaded.",
+    "name": "rotki migration assistant",
+    "title_template": "{title} {'|'} rotki migration assistant"
+  },
+  "common": {
+    "empty_value": "(empty)",
+    "name_and_size": "{name} · {size}",
+    "rows": "{n} row | {n} rows",
+    "size": {
+      "b": "{size} B",
+      "kb": "{size} KB",
+      "mb": "{size} MB"
+    }
+  },
+  "convert_page": {
+    "back": "Back",
+    "blocker": {
+      "no_date_match": "No date in the sample matches this format.",
+      "no_file": "Choose a CSV file with at least two columns."
+    },
+    "next": "Next",
+    "steps": {
+      "convert": {
+        "description": "Convert the whole file and download the result.",
+        "title": "Convert"
+      },
+      "file": {
+        "description": "Pick the CSV your exchange exported.",
+        "title": "Choose file"
+      },
+      "formats": {
+        "description": "Check how the export writes dates and decimals.",
+        "title": "Dates and numbers"
+      },
+      "mapping": {
+        "description": "Tell the converter where each value rotki needs comes from.",
+        "title": "Map columns"
+      },
+      "preview": {
+        "description": "See what rotki will import from the first rows.",
+        "title": "Preview"
+      },
+      "target": {
+        "description": "Choose what the rows describe.",
+        "title": "rotki format"
+      }
+    },
+    "title": "Convert"
+  },
+  "field_mapping": {
+    "absolute": "Ignore the sign",
+    "empty_in_sample": "Empty in the sample",
+    "example": "e.g. {example}",
+    "example_mapped": "{raw} → {result}",
+    "fixed_label": "Fixed {column}",
+    "fixed_placeholder": "Value for every row",
+    "help": {
+      "amount": "How much of it moved.",
+      "currency": "The asset that moved.",
+      "description": "A note shown in rotki, such as an order or transaction id.",
+      "fee": "A zero or empty fee is left out.",
+      "fee_currency": "The asset the fee was paid in. Needed when there is a fee.",
+      "location": "The exchange or place these rows come from.",
+      "receive_amount": "How much of it was received.",
+      "receive_currency": "The asset received. On a buy of BTC/EUR, that is BTC.",
+      "spend_amount": "How much of it was given up.",
+      "spend_currency": "The asset given up. On a buy of BTC/EUR, that is EUR.",
+      "timestamp": "When it happened. The date format is set in the next step.",
+      "type": "What kind of event each row is. Map every value the export uses below."
+    },
+    "last_part": "Last part: {part}",
+    "location_external": "rotki will list these rows under External. Pick the exchange if it is in the list.",
+    "optional": "optional",
+    "part": "Part {number}",
+    "part_to_keep": "Part to keep",
+    "part_with_value": "Part {number}: {part}",
+    "rename": "Rename some values",
+    "separator": "Separator",
+    "source": {
+      "constant": "A fixed value",
+      "empty": "Leave empty",
+      "label": "Source for {column}"
+    },
+    "split": "Take one part of the value"
+  },
+  "footer": {
+    "copyright": "© Rotki Solutions GmbH {years}.",
+    "deployment_build": "Deployment build",
+    "nav_label": "Source and deployment",
+    "privacy": "Your files never leave this page. It has no server to send them to, and its content security policy blocks every network request.",
+    "provenance": "Provenance",
+    "source_code": "Source code (AGPL-3.0)"
+  },
+  "header": {
+    "brand_name": "rotki",
+    "brand_tagline": "migration assistant",
+    "home_label": "rotki migration assistant, home",
+    "runs_locally": "Runs locally in your browser",
+    "switch_to_dark": "Switch to dark mode",
+    "switch_to_light": "Switch to light mode"
+  },
+  "index_page": {
+    "features": {
+      "any_export": {
+        "description": "Pick which column holds what, step by step. Save the mapping and reuse it when the exchange moves its columns around.",
+        "title": "Any exchange export"
+      },
+      "large_files": {
+        "description": "Rows stream from your disk and the result goes back to it, so memory does not grow with the file. A 1 GB export converts in under a minute and a half.",
+        "title": "Large files welcome"
+      },
+      "on_device": {
+        "description": "Files are read and converted inside this tab. Nothing is uploaded, and the page is not allowed to make network requests.",
+        "title": "Stays on your device"
+      }
+    },
+    "heading": "Bring your exchange history into rotki",
+    "intro": "Turn a CSV export from any exchange into rotki's generic trades or events format, ready for {menu} in rotki.",
+    "intro_menu": "Import Data → Custom Import",
+    "start": "Start converting",
+    "title": "Convert exchange history for rotki",
+    "verify": {
+      "body": "Open your browser's developer tools on the Network tab while you convert a file: no request goes out. The page ships a content security policy with {policy}, so the browser would block one even if the code tried. The footer links the release, the exact commit and the build that produced this deployment, and each release carries a copy of the site with a build attestation you can verify.",
+      "heading": "Check it yourself"
+    }
+  },
+  "messages": {
+    "amount_negative": "{column} \"{value}\" is negative; turn on \"Ignore the sign\" for it.",
+    "amount_not_number": "{column} \"{value}\" is not a number with \"{separator}\" as the decimal separator.",
+    "column_empty": "{column} is empty.",
+    "fee_without_currency": "Fee \"{value}\" has no Fee Currency.",
+    "missing_column": "The file has no column named \"{column}\".",
+    "needs_source": "{column} needs a source column or a fixed value.",
+    "no_dates": "The recipe has no valid date format or time zone.",
+    "no_decimal_separator": "The recipe has no valid decimal separator.",
+    "no_format": "The recipe names no rotki format.",
+    "no_header": "The file ended before its header row.",
+    "no_input": "The recipe has no valid encoding, delimiter or header row.",
+    "no_storage": "This browser does not let the page store the converted file. Private windows often block it; open the page in a normal window and try again.",
+    "not_json": "The file is not JSON.",
+    "not_recipe": "The file is not a migration assistant recipe.",
+    "request_invalid_output": "The conversion request names invalid output files.",
+    "request_invalid_texts": "The conversion request carries no texts for the rejected rows.",
+    "request_no_file": "The conversion request carries no file.",
+    "request_not_object": "The conversion request is not an object.",
+    "request_unknown_type": "The conversion request has an unknown type.",
+    "stopped": "The conversion stopped unexpectedly.",
+    "stopped_with_detail": "The conversion stopped unexpectedly: {detail}",
+    "timestamp_format": "Timestamp \"{value}\" does not match the date format {format}.",
+    "unknown_location": "Location \"{value}\" is not a rotki location.",
+    "unknown_time_zone": "This browser does not know the time zone \"{timeZone}\".",
+    "unknown_type": "Type \"{value}\" is not a rotki event type; map it to one or skip it."
+  },
+  "raw_records": {
+    "header": "Header"
+  },
+  "rejected_file": {
+    "reason": "Reason",
+    "row": "Row"
+  },
+  "sample_readings": {
+    "in_file": "In the file",
+    "read_as": "Read as"
+  },
+  "step_convert": {
+    "becomes": "Becomes",
+    "becomes_value": "rotki {format}, location {location}",
+    "cancel": "Cancel",
+    "convert_another": "Convert another file",
+    "expectation": {
+      "converted": "{converted} of {total} row converts | {converted} of {total} rows convert",
+      "rejected": "{count} rejected",
+      "skipped": "{count} skipped"
+    },
+    "failed_title": "The conversion stopped",
+    "file": "File",
+    "import_help": "In rotki, open {import_data}, pick {custom_import}, then {import_format}, and choose the downloaded file. The rejected file lists each row with the reason in its last column.",
+    "import_menu": {
+      "custom_import": "Custom Import",
+      "import_data": "Import Data",
+      "import_format": "Import {format}"
+    },
+    "in_preview": "In the preview",
+    "large_file": "A large file converts best in a normal window: private windows keep the result in memory instead of on disk.",
+    "location": {
+      "column": "from the {column} column",
+      "not_set": "not set"
+    },
+    "name": {
+      "hint": "Downloads as {name}",
+      "label": "Name"
+    },
+    "progress": {
+      "label": "Conversion progress",
+      "status": "{read} of {total} · {converted} converted · {rejected} rejected"
+    },
+    "recipe_note": "Next time this exchange exports, the saved recipe sets every step up for you.",
+    "rejected_download": "Rejected rows · {size}",
+    "result": {
+      "description": "{skipped} skipped, {rejected} rejected.",
+      "title": "{count} row converted | {count} rows converted"
+    },
+    "save_recipe": "Save recipe",
+    "save_recipe_only": "Save the recipe without converting",
+    "start": {
+      "done": "Convert again",
+      "failed": "Try again",
+      "idle": "Convert the whole file",
+      "running": "Converting…"
+    }
+  },
+  "step_file": {
+    "delimiter": {
+      "hint": "The character between the columns.",
+      "label": "Delimiter",
+      "names": {
+        "comma": "comma",
+        "pipe": "pipe",
+        "semicolon": "semicolon",
+        "tab": "tab"
+      },
+      "options": {
+        "comma": "Comma (,)",
+        "pipe": "Pipe ({'|'})",
+        "semicolon": "Semicolon (;)",
+        "tab": "Tab"
+      }
+    },
+    "detected": "Detected {encoding}, {delimiter} separated, column names on {row}.",
+    "detected_row": "row {number}",
+    "encoding": {
+      "hint": "Change it if letters such as ü or é look garbled.",
+      "label": "Encoding"
+    },
+    "help": {
+      "any_csv": "Any CSV works: the next steps detect its layout and let you say what each column holds.",
+      "reports": "Reports",
+      "statements": "Statements",
+      "transaction_history": "Transaction history",
+      "where": "Most exchanges put the export under {history}, {statements} or {reports}, as CSV. Pick the full history if the exchange offers a choice."
+    },
+    "settings": {
+      "change": "Change",
+      "hide": "Hide"
+    },
+    "use_recipe": "Use a saved recipe",
+    "your_file": {
+      "description": "The highlighted row holds the column names. If the exchange wrote other lines above them, click the right row.",
+      "partial": "Settings and previews use the first record of {size}. | Settings and previews use the first {count} records of {size}.",
+      "title": "Your file"
+    }
+  },
+  "step_formats": {
+    "ambiguous": {
+      "description": "The sample fits {count} format that reads the dates differently. Pick the one your exchange uses. | The sample fits {count} formats that read the dates differently, for example day-first and month-first. Pick the one your exchange uses.",
+      "title": "Check the day and month order"
+    },
+    "date_format": {
+      "custom": "Custom pattern",
+      "hint": {
+        "also_matches": "Also matches {formats}.",
+        "matches_all": "Matches every date in the sample.",
+        "none": "No format matches the dates in the sample.",
+        "sample_matches": "The sample matches {formats}."
+      },
+      "label": "Date format",
+      "names": {
+        "iso": "ISO 8601",
+        "unix_ms": "milliseconds since 1970",
+        "unix_s": "seconds since 1970"
+      },
+      "options": {
+        "iso": "ISO 8601, such as 2024-03-05 12:30:15 or 2024-03-05T12:30:15Z",
+        "unix_ms": "milliseconds since 1970",
+        "unix_s": "Seconds since 1970, Unix time"
+      }
+    },
+    "dates": "Dates",
+    "decimal_separator": {
+      "comma": "Comma: 1.234,56",
+      "dot": "Dot: 1,234.56",
+      "label": "Decimal separator"
+    },
+    "numbers": "Numbers",
+    "pattern": {
+      "hint": "Tokens: YYYY MM M DD D HH H hh h mm ss SSS A MMM. Put words in brackets, as [at]. Anything else must match as written.",
+      "label": "Pattern"
+    },
+    "time_zone": {
+      "hint": "Used when a date carries no offset. Many exchanges export in UTC.",
+      "label": "Time zone of the export"
+    },
+    "unreadable": {
+      "date": "does not match",
+      "number": "not a number with this separator"
+    }
+  },
+  "step_mapping": {
+    "groups": {
+      "asset_and_amount": "Asset and amount",
+      "fee": "Fee",
+      "note": "Note",
+      "received": "Received",
+      "spent": "Spent",
+      "what_happened": "What happened",
+      "when_and_where": "When and where"
+    },
+    "matched_by_name": "Columns are matched by name, so a saved recipe still works when the exchange moves them around.",
+    "swap": {
+      "candidate": "{value} · {rows}",
+      "column_label": "Sells are the rows where",
+      "enable": "Some rows are sells",
+      "explanation": "Map the columns above as they read for a buy. On a sell, what was spent and what was received are swapped.",
+      "title": "Buys and sells",
+      "values_legend": "is one of"
+    }
+  },
+  "step_nav": {
+    "label": "Conversion steps"
+  },
+  "step_preview": {
+    "chips": {
+      "converted": "{count} converted",
+      "rejected": "{count} rejected",
+      "skipped": "{count} skipped"
+    },
+    "first_rows": "First row: | First {count} rows:",
+    "first_rows_of_file": "First row of the file: | First {count} rows of the file:",
+    "fix_in": "Fix in {step}",
+    "import": {
+      "nothing": "No row converts yet.",
+      "title": "What rotki will import"
+    },
+    "incomplete": "The mapping is not complete",
+    "rejected": {
+      "description": "These rows would go to a separate file. Fix the cause to bring them in, or leave them out. Row numbers match the file table in the first step.",
+      "row": "Row {row}",
+      "title": "Rejected rows"
+    }
+  },
+  "step_target": {
+    "choices": {
+      "events": {
+        "description": "Each row moves one asset: deposits, withdrawals, staking rewards, income, losses.",
+        "example": "Received 0.01 ETH as a staking reward",
+        "title": "Events"
+      },
+      "trades": {
+        "description": "Each row swaps one asset for another: buys, sells, conversions.",
+        "example": "Spent 30,000 EUR, received 0.5 BTC",
+        "title": "Trades"
+      }
+    },
+    "label": "rotki format",
+    "separate_files": "rotki imports trades and events from separate files. If your export mixes both, convert it twice and skip the other kind of row each time.",
+    "suggested": "Suggested for this file"
+  },
+  "value_map": {
+    "empty": "No values in the sample yet.",
+    "in_sample": "{n} row in the sample | {n} rows in the sample",
+    "keep_placeholder": "Keep as is",
+    "not_mapped": "Not mapped (rejected)",
+    "rename_label": "Rename {value}",
+    "skip": "Skip these rows",
+    "type_label": "rotki type for {value}",
+    "unmapped": "{values} not mapped yet, so {rows} of the sample would be rejected. Pick a type, or skip them if rotki should not import them.",
+    "unmapped_values": "{n} value is | {n} values are"
+  }
+}

@@ -1,15 +1,18 @@
 <script setup lang="ts">
 import { useHead } from '@unhead/vue';
+import { useI18n } from 'vue-i18n';
 import AppFooter from './components/AppFooter.vue';
 import AppHeader from './components/AppHeader.vue';
 
+const { locale, t } = useI18n({ useScope: 'global' });
+
 useHead({
-  titleTemplate: title => (title ? `${title} | rotki migration assistant` : 'rotki migration assistant'),
-  htmlAttrs: { lang: 'en' },
+  titleTemplate: title => (title ? t('app.title_template', { title }) : t('app.name')),
+  htmlAttrs: { lang: locale },
   meta: [
     {
       name: 'description',
-      content: 'Convert exchange CSV history to rotki\'s import format. Everything runs in your browser, nothing is uploaded.',
+      content: () => t('app.description'),
     },
   ],
 });

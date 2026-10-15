@@ -1,12 +1,15 @@
 <script setup lang="ts">
 import type { SampleReading } from '@/modules/wizard/types';
 import { RuiIcon } from '@rotki/ui-library';
+import { useI18n } from 'vue-i18n';
 
 const { readings, unreadable } = defineProps<{
   readings: SampleReading[];
   /** Shown in place of a value the converter cannot read. */
   unreadable: string;
 }>();
+
+const { t } = useI18n({ useScope: 'global' });
 </script>
 
 <template>
@@ -15,14 +18,14 @@ const { readings, unreadable } = defineProps<{
       <thead class="bg-rui-surface-muted text-left text-rui-text-secondary">
         <tr>
           <th class="px-3 py-1.5 font-medium">
-            In the file
+            {{ t('sample_readings.in_file') }}
           </th>
           <th
             class="w-6"
             aria-hidden="true"
           />
           <th class="px-3 py-1.5 font-medium">
-            Read as
+            {{ t('sample_readings.read_as') }}
           </th>
         </tr>
       </thead>

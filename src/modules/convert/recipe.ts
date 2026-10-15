@@ -3,6 +3,7 @@ import { build, err, field, flatMap, fromNullable, fromThrowable, map, ok, type 
 import { type Delimiter, DELIMITERS, type Encoding, ENCODINGS } from '@/modules/csv/sniff';
 import { getRotkiColumns, RotkiColumn, RotkiFormat } from '@/modules/rotki-format';
 import { isValidTimeZone } from './dates';
+import { type Message, message, MessageCode } from './messages';
 import { DecimalSeparator } from './numbers';
 
 /** Where a field takes its value from: a source column, a fixed value, or nowhere. */
@@ -99,19 +100,19 @@ export function referencedColumns(recipe: Recipe): string[] {
 }
 
 /** What keeps a recipe from converting a file with this header; empty when nothing does. */
-export function validateRecipe(recipe: Recipe, header: readonly string[]): string[] {
-  const problems: string[] = [];
+export function validateRecipe(recipe: Recipe, header: readonly string[]): Message[] {
+  const problems: Message[] = [];
   for (const column of REQUIRED_COLUMNS[recipe.format]) {
     const source = recipe.fields[column]?.source;
     if (!source || source.kind === SourceKind.empty || (source.kind === SourceKind.constant && source.value.trim() === ''))
-      problems.push(`${column} needs a source column or a fixed value.`);
+      problems.push(message(MessageCode.needsSource, { column }));
   }
   for (const column of referencedColumns(recipe)) {
     if (!header.includes(column))
-      problems.push(`The file has no column named "${column}".`);
+      problems.push(message(MessageCode.missingColumn, { column }));
   }
   if (!isValidTimeZone(recipe.dates.timeZone))
-    problems.push(`This browser does not know the time zone "${recipe.dates.timeZone}".`);
+    problems.push(message(MessageCode.unknownTimeZone, { timeZone: recipe.dates.timeZone }));
   return problems;
 }
 
@@ -197,25 +198,25 @@ function readSwap(value: unknown): Recipe['swap'] {
   return { column: value.column, values: value.values.filter(item => typeof item === 'string') };
 }
 
-function readRecipeObject(json: unknown): Result<Record<string, unknown>, string> {
-  return isObject(json) && json.version === 1 ? ok(json) : err('The file is not a migration assistant recipe.');
+function readRecipeObject(json: unknown): Result<Record<string, unknown>, Message> {
+  return isObject(json) && json.version === 1 ? ok(json) : err(message(MessageCode.notRecipe));
 }
 
 /**
  * Reads a recipe from untrusted data, keeping only the field mappings it recognises. Fails with
  * the reason when the data is not a recipe or misses a setting the converter cannot do without.
  */
-export function readRecipe(data: unknown): Result<Recipe, string> {
+export function readRecipe(data: unknown): Result<Recipe, Message> {
   return pipe(
     readRecipeObject(data),
     flatMap(value => pipe(
       build(),
-      field('format', () => fromNullable(pick(Object.values(RotkiFormat), value.format), 'The recipe names no rotki format.')),
-      field('input', () => fromNullable(readInput(value.input), 'The recipe has no valid encoding, delimiter or header row.')),
-      field('dates', () => fromNullable(readDates(value.dates), 'The recipe has no valid date format or time zone.')),
+      field('format', () => fromNullable(pick(Object.values(RotkiFormat), value.format), message(MessageCode.noFormat))),
+      field('input', () => fromNullable(readInput(value.input), message(MessageCode.noInput))),
+      field('dates', () => fromNullable(readDates(value.dates), message(MessageCode.noDates))),
       field('decimalSeparator', () => fromNullable(
         isObject(value.numbers) ? pick(Object.values(DecimalSeparator), value.numbers.decimalSeparator) : undefined,
-        'The recipe has no valid decimal separator.',
+        message(MessageCode.noDecimalSeparator),
       )),
       map(({ format, input, dates, decimalSeparator }): Recipe => {
         const recipe: Recipe = {
@@ -237,9 +238,9 @@ export function readRecipe(data: unknown): Result<Recipe, string> {
 }
 
 /** Reads a saved recipe file. */
-export function parseRecipe(text: string): Result<Recipe, string> {
+export function parseRecipe(text: string): Result<Recipe, Message> {
   return pipe(
-    fromThrowable((): unknown => JSON.parse(text), () => 'The file is not JSON.'),
+    fromThrowable((): unknown => JSON.parse(text), () => message(MessageCode.notJson)),
     flatMap(readRecipe),
   );
 }

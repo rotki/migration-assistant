@@ -1,6 +1,7 @@
 import { createRui } from '@rotki/ui-library';
 import { mount, type VueWrapper } from '@vue/test-utils';
 import { type Component, defineComponent, h, nextTick, type VNode } from 'vue';
+import { createAppI18n } from '@/i18n';
 import { provideWizard, type Wizard } from '@/modules/wizard/use-wizard';
 
 export interface WizardMount {
@@ -9,7 +10,7 @@ export interface WizardMount {
 }
 
 /** Plugins a component needs to render as it does in the app. */
-export const global = { plugins: [createRui()] };
+export const global = { plugins: [createAppI18n(), createRui()] };
 
 /** Reads one prop of a mounted component, whatever its declared props. */
 export function prop(wrapper: VueWrapper, key: string): unknown {

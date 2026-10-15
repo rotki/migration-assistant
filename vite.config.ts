@@ -2,6 +2,7 @@
 import { execSync } from 'node:child_process';
 import process from 'node:process';
 import { fileURLToPath, URL } from 'node:url';
+import VueI18nPlugin from '@intlify/unplugin-vue-i18n/vite';
 import { ruiIconsPlugin } from '@rotki/ui-library/vite-plugin';
 import tailwindcss from '@tailwindcss/vite';
 import vue from '@vitejs/plugin-vue';
@@ -81,6 +82,10 @@ export default defineConfig({
     vue(),
     tailwindcss(),
     ruiIconsPlugin(),
+    // Messages compile at build time, so the bundle ships vue-i18n without its message compiler.
+    VueI18nPlugin({
+      include: [fileURLToPath(new URL('src/locales/**', import.meta.url))],
+    }),
     contentSecurityPolicy(),
   ],
   ssgOptions: {

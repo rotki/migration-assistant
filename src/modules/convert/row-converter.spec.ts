@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { RotkiFormat } from '@/modules/rotki-format';
+import { message, MessageCode } from './messages';
 import { parseRecipe, type Recipe, serializeRecipe, SKIP_ROW, validateRecipe } from './recipe';
 import { createRowConverter, RecipeError } from './row-converter';
 import { guessLocation, suggestFields } from './suggest';
@@ -54,11 +55,11 @@ describe('createRowConverter for trades', () => {
   });
 
   it.each([
-    [['not a date', 'BTC/EUR', 'buy', '1', '1', '1', '0', 'EUR'], 'Timestamp', 'format', 'Timestamp "not a date" does not match the date format ISO 8601.'],
-    [['2024-03-05', 'BTC/EUR', 'buy', '1', 'lots', '1', '0', 'EUR'], 'Receive Amount', 'format', 'Receive Amount "lots" is not a number with the dot decimal separator.'],
-    [['2024-03-05', 'BTC/EUR', 'buy', '1', '-1', '1', '0', 'EUR'], 'Receive Amount', 'mapping', 'Receive Amount "-1" is negative; turn on "Ignore the sign" for it.'],
-    [['2024-03-05', 'BTC', 'buy', '1', '1', '1', '0', 'EUR'], 'Spend Currency', 'mapping', 'Spend Currency is empty.'],
-    [['2024-03-05', 'BTC/EUR', 'buy', '1', '1', '1', '2', ''], 'Fee Currency', 'mapping', 'Fee "2" has no Fee Currency.'],
+    [['not a date', 'BTC/EUR', 'buy', '1', '1', '1', '0', 'EUR'], 'Timestamp', 'format', message(MessageCode.timestampFormat, { value: 'not a date', format: 'iso' })],
+    [['2024-03-05', 'BTC/EUR', 'buy', '1', 'lots', '1', '0', 'EUR'], 'Receive Amount', 'format', message(MessageCode.amountNotNumber, { column: 'Receive Amount', value: 'lots', separator: '.' })],
+    [['2024-03-05', 'BTC/EUR', 'buy', '1', '-1', '1', '0', 'EUR'], 'Receive Amount', 'mapping', message(MessageCode.amountNegative, { column: 'Receive Amount', value: '-1' })],
+    [['2024-03-05', 'BTC', 'buy', '1', '1', '1', '0', 'EUR'], 'Spend Currency', 'mapping', message(MessageCode.columnEmpty, { column: 'Spend Currency' })],
+    [['2024-03-05', 'BTC/EUR', 'buy', '1', '1', '1', '2', ''], 'Fee Currency', 'mapping', message(MessageCode.feeWithoutCurrency, { value: '2' })],
   ])('rejects %j, naming the column and where to fix it', (record, column, cause, reason) => {
     expect(convert(record)).toEqual({ kind: 'rejected', reason, column, cause });
   });
@@ -67,7 +68,7 @@ describe('createRowConverter for trades', () => {
     const recipe = tradeRecipe();
     recipe.fields.Location = { source: { kind: 'constant', value: 'Nowhere' } };
     const result = createRowConverter(recipe, TRADE_HEADER)(['2024-03-05', 'BTC/EUR', 'buy', '1', '1', '1', '0', 'EUR']);
-    expect(result).toEqual({ kind: 'rejected', reason: 'Location "Nowhere" is not a rotki location.', column: 'Location', cause: 'mapping' });
+    expect(result).toEqual({ kind: 'rejected', reason: message(MessageCode.unknownLocation, { value: 'Nowhere' }), column: 'Location', cause: 'mapping' });
   });
 
   it('refuses a recipe that reads a column the file lacks', () => {
@@ -110,7 +111,7 @@ describe('createRowConverter for events', () => {
   it('rejects a value that names an object member instead of reading the member', () => {
     expect(convert(['01/07/2024 14:00', 'constructor', 'ETH', '1'])).toEqual({
       kind: 'rejected',
-      reason: 'Type "constructor" is not a rotki event type; map it to one or skip it.',
+      reason: message(MessageCode.unknownType, { value: 'constructor' }),
       column: 'Type',
       cause: 'mapping',
     });
@@ -119,7 +120,7 @@ describe('createRowConverter for events', () => {
   it('rejects types left unmapped', () => {
     expect(convert(['01/07/2024 14:00', 'Airdrop', 'ETH', '1'])).toEqual({
       kind: 'rejected',
-      reason: 'Type "Airdrop" is not a rotki event type; map it to one or skip it.',
+      reason: message(MessageCode.unknownType, { value: 'Airdrop' }),
       column: 'Type',
       cause: 'mapping',
     });
@@ -133,16 +134,16 @@ describe('recipes', () => {
   });
 
   it('refuse files that are not recipes, saying why', () => {
-    expect(parseRecipe('not json')).toEqual({ ok: false, error: 'The file is not JSON.' });
-    expect(parseRecipe('{"version":2}')).toEqual({ ok: false, error: 'The file is not a migration assistant recipe.' });
+    expect(parseRecipe('not json')).toEqual({ ok: false, error: message(MessageCode.notJson) });
+    expect(parseRecipe('{"version":2}')).toEqual({ ok: false, error: message(MessageCode.notRecipe) });
     const withoutDates = { ...tradeRecipe(), dates: undefined };
-    expect(parseRecipe(JSON.stringify(withoutDates))).toEqual({ ok: false, error: 'The recipe has no valid date format or time zone.' });
+    expect(parseRecipe(JSON.stringify(withoutDates))).toEqual({ ok: false, error: message(MessageCode.noDates) });
   });
 
   it('name what is missing', () => {
     const recipe = tradeRecipe();
     recipe.fields.Timestamp = { source: { kind: 'empty' } };
-    expect(validateRecipe(recipe, TRADE_HEADER)).toEqual(['Timestamp needs a source column or a fixed value.']);
+    expect(validateRecipe(recipe, TRADE_HEADER)).toEqual([message(MessageCode.needsSource, { column: 'Timestamp' })]);
   });
 });
 

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { RuiCheckbox, RuiIcon, RuiMenuSelect, RuiTextField } from '@rotki/ui-library';
 import { computed } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { AMOUNT_COLUMNS, type FieldMapping, isRequiredColumn, mappedValue, SourceKind, splitValue, type ValueSource } from '@/modules/convert/recipe';
 import { guessEventTypes, guessSeparator } from '@/modules/convert/suggest';
 import { DEFAULT_LOCATION, ROTKI_EVENT_TYPES, ROTKI_LOCATIONS, RotkiColumn } from '@/modules/rotki-format';
@@ -15,26 +16,30 @@ interface Example {
 
 const { column } = defineProps<{ column: RotkiColumn }>();
 
+const { t } = useI18n({ useScope: 'global' });
 const { columnSamples, header, recipe } = useWizard();
 
 const EMPTY = '__empty__';
 const CONSTANT = '__constant__';
 const COLUMN_PREFIX = 'column:';
 
-const HELP: Record<RotkiColumn, string> = {
-  [RotkiColumn.location]: 'The exchange or place these rows come from.',
-  [RotkiColumn.spendCurrency]: 'The asset given up. On a buy of BTC/EUR, that is EUR.',
-  [RotkiColumn.spendAmount]: 'How much of it was given up.',
-  [RotkiColumn.receiveCurrency]: 'The asset received. On a buy of BTC/EUR, that is BTC.',
-  [RotkiColumn.receiveAmount]: 'How much of it was received.',
-  [RotkiColumn.fee]: 'A zero or empty fee is left out.',
-  [RotkiColumn.feeCurrency]: 'The asset the fee was paid in. Needed when there is a fee.',
-  [RotkiColumn.description]: 'A note shown in rotki, such as an order or transaction id.',
-  [RotkiColumn.timestamp]: 'When it happened. The date format is set in the next step.',
-  [RotkiColumn.type]: 'What kind of event each row is. Map every value the export uses below.',
-  [RotkiColumn.currency]: 'The asset that moved.',
-  [RotkiColumn.amount]: 'How much of it moved.',
-};
+const help = computed<string>(() => {
+  const texts: Record<RotkiColumn, string> = {
+    [RotkiColumn.location]: t('field_mapping.help.location'),
+    [RotkiColumn.spendCurrency]: t('field_mapping.help.spend_currency'),
+    [RotkiColumn.spendAmount]: t('field_mapping.help.spend_amount'),
+    [RotkiColumn.receiveCurrency]: t('field_mapping.help.receive_currency'),
+    [RotkiColumn.receiveAmount]: t('field_mapping.help.receive_amount'),
+    [RotkiColumn.fee]: t('field_mapping.help.fee'),
+    [RotkiColumn.feeCurrency]: t('field_mapping.help.fee_currency'),
+    [RotkiColumn.description]: t('field_mapping.help.description'),
+    [RotkiColumn.timestamp]: t('field_mapping.help.timestamp'),
+    [RotkiColumn.type]: t('field_mapping.help.type'),
+    [RotkiColumn.currency]: t('field_mapping.help.currency'),
+    [RotkiColumn.amount]: t('field_mapping.help.amount'),
+  };
+  return texts[column];
+});
 
 const mapping = computed<FieldMapping>({
   get: () => recipe.value.fields[column] ?? { source: { kind: SourceKind.empty } },
@@ -49,8 +54,8 @@ const isCurrency = column.includes('Currency');
 
 const sourceOptions = computed<{ id: string; label: string }[]>(() => [
   ...header.value.map(name => ({ id: `${COLUMN_PREFIX}${name}`, label: name })),
-  { id: CONSTANT, label: 'A fixed value' },
-  ...(required.value ? [] : [{ id: EMPTY, label: 'Leave empty' }]),
+  { id: CONSTANT, label: t('field_mapping.source.constant') },
+  ...(required.value ? [] : [{ id: EMPTY, label: t('field_mapping.source.empty') }]),
 ]);
 
 const sourceId = computed<string>({
@@ -94,7 +99,7 @@ const examples = computed<Example[]>(() => {
 });
 
 const exampleText = computed<string>(() => examples.value
-  .map(({ raw, result }) => (result === raw ? raw : `${raw} → ${result || '(empty)'}`))
+  .map(({ raw, result }) => (result === raw ? raw : t('field_mapping.example_mapped', { raw, result: result || t('common.empty_value') })))
   .join(', '));
 
 const NUMBER_LIKE = /^[+-]?[\d.,\s']+$/;
@@ -127,10 +132,13 @@ const splitEnabled = computed<boolean>({
 const partOptions = computed<{ id: number; label: string }[]>(() => {
   const separator = mapping.value.split?.separator ?? '';
   const parts = separator ? (rawSamples.value[0] ?? '').split(separator) : [];
-  const options = parts.map((part, index) => ({ id: index, label: `Part ${index + 1}: ${part || '(empty)'}` }));
+  const options = parts.map((part, index) => ({
+    id: index,
+    label: t('field_mapping.part_with_value', { number: index + 1, part: part || t('common.empty_value') }),
+  }));
   if (parts.length > 1)
-    options.push({ id: -1, label: `Last part: ${parts.at(-1) ?? ''}` });
-  return options.length > 0 ? options : [{ id: 0, label: 'Part 1' }];
+    options.push({ id: -1, label: t('field_mapping.last_part', { part: parts.at(-1) ?? '' }) });
+  return options.length > 0 ? options : [{ id: 0, label: t('field_mapping.part', { number: 1 }) }];
 });
 
 const valueMap = computed<Record<string, string>>({
@@ -203,11 +211,11 @@ const typeOptions = ROTKI_EVENT_TYPES.map(id => ({ id, label: id }));
             v-if="!required"
             class="text-xs text-rui-text-secondary"
           >
-            optional
+            {{ t('field_mapping.optional') }}
           </span>
         </div>
         <p class="text-sm text-rui-text-secondary mt-1">
-          {{ HELP[column] }}
+          {{ help }}
         </p>
       </div>
 
@@ -221,7 +229,7 @@ const typeOptions = ROTKI_EVENT_TYPES.map(id => ({ id, label: id }));
             dense
             hide-details
             label-placement="hidden"
-            :label="`Source for ${column}`"
+            :label="t('field_mapping.source.label', { column })"
           />
           <template v-if="mapping.source.kind === SourceKind.constant">
             <RuiMenuSelect
@@ -233,7 +241,7 @@ const typeOptions = ROTKI_EVENT_TYPES.map(id => ({ id, label: id }));
               dense
               hide-details
               label-placement="hidden"
-              label="Location"
+              :label="column"
             />
             <RuiMenuSelect
               v-else-if="column === RotkiColumn.type"
@@ -244,7 +252,7 @@ const typeOptions = ROTKI_EVENT_TYPES.map(id => ({ id, label: id }));
               dense
               hide-details
               label-placement="hidden"
-              label="Type"
+              :label="column"
             />
             <RuiTextField
               v-else
@@ -252,19 +260,25 @@ const typeOptions = ROTKI_EVENT_TYPES.map(id => ({ id, label: id }));
               dense
               hide-details
               label-placement="hidden"
-              :label="`Fixed ${column}`"
-              placeholder="Value for every row"
+              :label="t('field_mapping.fixed_label', { column })"
+              :placeholder="t('field_mapping.fixed_placeholder')"
             />
           </template>
           <p
             v-else-if="mapping.source.kind === SourceKind.column && column !== RotkiColumn.type"
             class="text-sm text-rui-text-secondary self-center truncate"
           >
-            <template v-if="exampleText">
-              e.g. <span class="font-mono text-rui-text">{{ exampleText }}</span>
-            </template>
+            <i18n-t
+              v-if="exampleText"
+              keypath="field_mapping.example"
+              scope="global"
+            >
+              <template #example>
+                <span class="font-mono text-rui-text">{{ exampleText }}</span>
+              </template>
+            </i18n-t>
             <template v-else>
-              Empty in the sample
+              {{ t('field_mapping.empty_in_sample') }}
             </template>
           </p>
         </div>
@@ -279,7 +293,7 @@ const typeOptions = ROTKI_EVENT_TYPES.map(id => ({ id, label: id }));
             size="16"
             class="mt-0.5 shrink-0"
           />
-          rotki will list these rows under External. Pick the exchange if it is in the list.
+          {{ t('field_mapping.location_external') }}
         </p>
 
         <template v-if="mapping.source.kind === SourceKind.column">
@@ -292,14 +306,14 @@ const typeOptions = ROTKI_EVENT_TYPES.map(id => ({ id, label: id }));
               v-model="splitEnabled"
               size="sm"
               hide-details
-              label="Take one part of the value"
+              :label="t('field_mapping.split')"
             />
             <RuiCheckbox
               v-if="isAmount"
               :model-value="!!mapping.absolute"
               size="sm"
               hide-details
-              label="Ignore the sign"
+              :label="t('field_mapping.absolute')"
               @update:model-value="mapping = { ...mapping, absolute: $event || undefined }"
             />
             <RuiCheckbox
@@ -307,7 +321,7 @@ const typeOptions = ROTKI_EVENT_TYPES.map(id => ({ id, label: id }));
               v-model="renameEnabled"
               size="sm"
               hide-details
-              label="Rename some values"
+              :label="t('field_mapping.rename')"
             />
           </div>
 
@@ -319,7 +333,7 @@ const typeOptions = ROTKI_EVENT_TYPES.map(id => ({ id, label: id }));
               :model-value="mapping.split.separator"
               dense
               hide-details
-              label="Separator"
+              :label="t('field_mapping.separator')"
               @update:model-value="updateSplit({ separator: $event })"
             />
             <RuiMenuSelect
@@ -329,7 +343,7 @@ const typeOptions = ROTKI_EVENT_TYPES.map(id => ({ id, label: id }));
               text-attr="label"
               dense
               hide-details
-              label="Part to keep"
+              :label="t('field_mapping.part_to_keep')"
               @update:model-value="updateSplit({ part: $event ?? 0 })"
             />
           </div>
