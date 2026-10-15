@@ -1,15 +1,17 @@
-import type { Recipe } from './recipe';
 import { createCsvParser } from '@/modules/csv/parser';
 import { normalizeHeader } from '@/modules/csv/sniff';
 import { formatCsvRow } from '@/modules/csv/writer';
-import { getRotkiColumns } from '@/modules/rotki-format';
+import { getRotkiColumns, RotkiFormat } from '@/modules/rotki-format';
 import { message, MessageCode, MessageError, type RejectedFileTexts, rejectionText } from './messages';
+import { outputFormats, type Recipe } from './recipe';
 import { createRowConverter, type RowConverter, RowKind } from './row-converter';
 
 export interface ConversionStats {
   bytesRead: number;
   totalBytes: number;
   converted: number;
+  /** Converted rows per rotki file; a recipe of format `both` splits them between trades and events. */
+  convertedByFormat: Record<RotkiFormat, number>;
   skipped: number;
   rejected: number;
 }
@@ -22,7 +24,8 @@ export interface ConvertStreamOptions {
   stream: ReadableStream<Uint8Array>;
   totalBytes: number;
   recipe: Recipe;
-  output: TextSink;
+  /** One sink per rotki file the recipe writes, as {@link outputFormats} lists them. */
+  outputs: Partial<Record<RotkiFormat, TextSink>>;
   /** Gets the source header plus a row number and a reason column, then every rejected record. */
   rejected: TextSink;
   /** The rejected file's column headers and reason texts, in the page's language. */
@@ -36,8 +39,22 @@ export interface ConvertStreamOptions {
  * when the file ends before its header.
  */
 export async function convertStream(options: ConvertStreamOptions): Promise<ConversionStats> {
-  const { stream, totalBytes, recipe, output, rejected, texts, onProgress } = options;
-  const stats: ConversionStats = { bytesRead: 0, totalBytes, converted: 0, skipped: 0, rejected: 0 };
+  const { stream, totalBytes, recipe, outputs, rejected, texts, onProgress } = options;
+  const formats = outputFormats(recipe.format);
+  const sinks = new Map(formats.map((format) => {
+    const sink = outputs[format];
+    if (!sink)
+      throw new Error(`convertStream got no output for the ${format} file.`);
+    return [format, sink];
+  }));
+  const stats: ConversionStats = {
+    bytesRead: 0,
+    totalBytes,
+    converted: 0,
+    convertedByFormat: { [RotkiFormat.trades]: 0, [RotkiFormat.events]: 0 },
+    skipped: 0,
+    rejected: 0,
+  };
   const parser = createCsvParser(recipe.input.delimiter);
   const decoder = new TextDecoder(recipe.input.encoding);
   let recordIndex = 0;
@@ -51,14 +68,16 @@ export async function convertStream(options: ConvertStreamOptions): Promise<Conv
       if (!convert) {
         const header = normalizeHeader(record);
         convert = createRowConverter(recipe, header);
-        output.write(formatCsvRow(getRotkiColumns(recipe.format)));
+        for (const [format, sink] of sinks)
+          sink.write(formatCsvRow(getRotkiColumns(format)));
         rejected.write(formatCsvRow([...header, texts.row, texts.reason]));
         continue;
       }
       const result = convert(record);
       if (result.kind === RowKind.converted) {
         stats.converted++;
-        output.write(formatCsvRow(result.values));
+        stats.convertedByFormat[result.format]++;
+        sinks.get(result.format)?.write(formatCsvRow(result.values));
       }
       else if (result.kind === RowKind.skipped) {
         stats.skipped++;

@@ -20,6 +20,7 @@ export const MessageCode = {
   ...RejectionCode,
   // A recipe that cannot convert a file.
   needsSource: 'needs_source',
+  needsRoute: 'needs_route',
   missingColumn: 'missing_column',
   unknownTimeZone: 'unknown_time_zone',
   // A saved recipe file that cannot be read.

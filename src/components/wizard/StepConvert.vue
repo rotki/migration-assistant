@@ -3,17 +3,33 @@ import { RuiAlert, RuiButton, RuiIcon, RuiProgress, RuiTextField } from '@rotki/
 import { computed, onBeforeUnmount, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { messageKey } from '@/modules/convert/messages';
-import { serializeRecipe, SourceKind } from '@/modules/convert/recipe';
+import { outputFormats, RecipeFormat, serializeRecipe, SourceKind } from '@/modules/convert/recipe';
 import { RowKind } from '@/modules/convert/row-converter';
 import { ConversionState, downloadNames, useConversion } from '@/modules/convert/use-conversion';
 import { useMessages } from '@/modules/convert/use-messages';
-import { RotkiColumn } from '@/modules/rotki-format';
+import { RotkiColumn, RotkiFormat } from '@/modules/rotki-format';
 import { useWizard } from '@/modules/wizard/use-wizard';
 
 const { locale, t } = useI18n({ useScope: 'global' });
 const { rejectedFileTexts, translate } = useMessages();
 const { file, preview, recipe, restart } = useWizard();
-const { cancel, output, problems, rejected, reset, start, state, stats } = useConversion();
+const { cancel, outputs, problems, rejected, reset, start, state, stats } = useConversion();
+
+/** What a recipe of each format writes, as the summary names it. */
+const formatName = computed<string>(() => {
+  const names: Record<RecipeFormat, string> = {
+    [RecipeFormat.trades]: t('step_convert.formats.trades'),
+    [RecipeFormat.events]: t('step_convert.formats.events'),
+    [RecipeFormat.both]: t('step_convert.formats.both'),
+  };
+  return names[recipe.value.format];
+});
+
+/** rotki's Custom Import tab for each file, as rotki labels it. */
+const importTabs = computed<Record<RotkiFormat, string>>(() => ({
+  [RotkiFormat.trades]: t('step_convert.import_menu.import_trades'),
+  [RotkiFormat.events]: t('step_convert.import_menu.import_events'),
+}));
 
 const recipeUrl = ref<string>();
 
@@ -38,6 +54,11 @@ function formatSize(size: number): string {
 }
 
 const names = computed(() => downloadNames(recipe.value, file.value?.name ?? ''));
+
+/** The converted files' names before converting; `both` lists both, though a file with no rows is not offered. */
+const downloadHint = computed<string>(() => outputFormats(recipe.value.format)
+  .map(format => names.value.outputs[format])
+  .join(t('step_convert.name.separator')));
 
 /** Private windows keep stored files in memory, which matters from a few hundred MB on. */
 const LARGE_FILE = 500 * 1024 * 1024;
@@ -114,7 +135,7 @@ onBeforeUnmount(() => {
         {{ t('step_convert.becomes') }}
       </dt>
       <dd class="m-0">
-        {{ t('step_convert.becomes_value', { format: recipe.format, location }) }}
+        {{ t('step_convert.becomes_value', { format: formatName, location }) }}
       </dd>
       <dt class="text-rui-text-secondary">
         {{ t('step_convert.in_preview') }}
@@ -141,7 +162,7 @@ onBeforeUnmount(() => {
       v-model="recipe.name"
       :label="t('step_convert.name.label')"
       dense
-      :hint="t('step_convert.name.hint', { name: names.output })"
+      :hint="t('step_convert.name.hint', { name: downloadHint })"
       data-testid="output-name"
     />
 
@@ -202,7 +223,7 @@ onBeforeUnmount(() => {
     </RuiAlert>
 
     <section
-      v-if="state === ConversionState.done && stats && output"
+      v-if="state === ConversionState.done && stats"
       class="flex flex-col gap-4"
       data-testid="conversion-result"
     >
@@ -213,11 +234,13 @@ onBeforeUnmount(() => {
       />
       <div class="flex flex-wrap gap-3">
         <RuiButton
+          v-for="output in outputs"
+          :key="output.format"
           tag="a"
           :href="output.url"
           :download="output.name"
           color="primary"
-          data-testid="download-output"
+          :data-testid="`download-${output.format}`"
         >
           <template #prepend>
             <RuiIcon
@@ -245,10 +268,13 @@ onBeforeUnmount(() => {
         </RuiButton>
       </div>
       <i18n-t
+        v-for="output in outputs"
+        :key="output.format"
         keypath="step_convert.import_help"
         tag="p"
         scope="global"
         class="text-sm text-rui-text-secondary"
+        :data-testid="`import-help-${output.format}`"
       >
         <template #import_data>
           <span class="font-medium text-rui-text">{{ t('step_convert.import_menu.import_data') }}</span>
@@ -257,9 +283,18 @@ onBeforeUnmount(() => {
           <span class="font-medium text-rui-text">{{ t('step_convert.import_menu.custom_import') }}</span>
         </template>
         <template #import_format>
-          <span class="font-medium text-rui-text">{{ t('step_convert.import_menu.import_format', { format: recipe.format }) }}</span>
+          <span class="font-medium text-rui-text">{{ importTabs[output.format] }}</span>
+        </template>
+        <template #file>
+          <span class="font-medium text-rui-text break-all">{{ output.name }}</span>
         </template>
       </i18n-t>
+      <p
+        v-if="rejected"
+        class="text-sm text-rui-text-secondary"
+      >
+        {{ t('step_convert.rejected_help') }}
+      </p>
       <p class="text-sm text-rui-text-secondary">
         {{ t('step_convert.recipe_note') }}
       </p>

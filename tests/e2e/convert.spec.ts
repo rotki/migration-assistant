@@ -51,7 +51,7 @@ test('converts a trade export with pairs and sells', async ({ page }) => {
   await next(page);
   await convert(page);
 
-  const output = await download(page, 'download-output');
+  const output = await download(page, 'download-trades');
   expect(output.name).toBe('kraken-trades-rotki-trades.csv');
   expect(output.text).toBe([
     TRADES_HEADER,
@@ -88,7 +88,7 @@ test('converts a ledger below a preamble into events', async ({ page }) => {
   await convert(page);
   await expect(page.getByTestId('conversion-result')).toContainText('4 rows converted');
 
-  const output = await download(page, 'download-output');
+  const output = await download(page, 'download-events');
   expect(output.text).toBe(LEDGER_EVENTS);
   const rejected = await download(page, 'download-rejected');
   expect(rejected.text).toContain(',7,"Type ""Transfer Between Main and Funding Wallet"" is not a rotki event type');
@@ -115,7 +115,7 @@ test('a saved recipe converts the same export with its columns moved', async ({ 
   for (let step = 0; step < 4; step++)
     await next(page);
   const recipe = await download(page, 'save-recipe');
-  expect(JSON.parse(recipe.text)).toMatchObject({ version: 1, format: 'events' });
+  expect(JSON.parse(recipe.text)).toMatchObject({ version: 2, format: 'events' });
 
   await loadCsv(page, 'exchange-ledger-reordered.csv');
   await page.getByTestId('recipe-file').setInputFiles({ name: 'ledger.recipe.json', mimeType: 'application/json', buffer: Buffer.from(recipe.text) });
@@ -123,8 +123,48 @@ test('a saved recipe converts the same export with its columns moved', async ({ 
     await next(page);
   await convert(page);
 
-  const output = await download(page, 'download-output');
+  const output = await download(page, 'download-events');
   expect(output.text).toBe(LEDGER_EVENTS);
+});
+
+test('splits a sent and received export into trades and events', async ({ page }) => {
+  await loadCsv(page, 'sided-export.csv');
+  await next(page);
+  await expect(page.getByTestId('format-both')).toHaveAttribute('aria-checked', 'true');
+  await expect(page.getByTestId('suggested-both')).toBeVisible();
+  await next(page);
+  await expect(page.getByTestId('route-counts')).toContainText('1 row as trades, 4 rows as events');
+  await expect(page.getByTestId('type-by-side')).toBeVisible();
+  await next(page);
+  await next(page);
+  await expect(page.getByTestId('preview-trades')).toBeVisible();
+  await expect(page.getByTestId('preview-events')).toBeVisible();
+  await expect(page.getByTestId('preview-rejected')).toContainText('Type "mystery"');
+  await next(page);
+  await convert(page);
+
+  const trades = await download(page, 'download-trades');
+  expect(trades.name).toBe('sided-export-rotki-trades.csv');
+  expect(trades.text).toBe([
+    TRADES_HEADER,
+    `external,EUR,30000,BTC,0.5,15,EUR,Buy BTC,${Date.UTC(2024, 2, 5, 12)}`,
+    '',
+  ].join('\n'));
+
+  const events = await download(page, 'download-events');
+  expect(events.name).toBe('sided-export-rotki-events.csv');
+  expect(events.text).toBe([
+    EVENTS_HEADER,
+    `Deposit,external,ETH,1.5,,,From my wallet,${Date.UTC(2024, 2, 6, 8)}`,
+    `Staking,external,ETH,0.01,,,Validator reward,${Date.UTC(2024, 2, 7, 9, 30)}`,
+    `Withdrawal,external,ETH,0.25,0.001,ETH,To cold storage,${Date.UTC(2024, 2, 8, 10)}`,
+    '',
+  ].join('\n'));
+
+  await expect(page.getByTestId('import-help-trades')).toContainText('Import trades');
+  await expect(page.getByTestId('import-help-events')).toContainText('Import events');
+  const rejected = await download(page, 'download-rejected');
+  expect(rejected.text).toContain(',6,"Type ""mystery"" is not a rotki event type');
 });
 
 test('a recipe that reads a missing column stops with the reason', async ({ page }) => {

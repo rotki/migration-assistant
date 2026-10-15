@@ -1,5 +1,5 @@
 import { DEFAULT_LOCATION, getRotkiColumns, ROTKI_LOCATIONS, RotkiColumn, type RotkiEventType, RotkiFormat } from '@/modules/rotki-format';
-import { type FieldMapping, isRequiredColumn, mappedValue, type Recipe, SourceKind } from './recipe';
+import { type Condition, ConditionKind, type Fallback, type FieldMapping, isRequiredColumn, mappedValue, type Recipe, RecipeFormat, SourceKind, type ValueSource } from './recipe';
 
 /** Header names exchanges commonly use for each rotki column, tried in order. */
 const PATTERNS: Partial<Record<RotkiColumn, readonly RegExp[]>> = {
@@ -54,6 +54,100 @@ export function suggestFields(header: readonly string[], format: RotkiFormat): R
   return fields;
 }
 
+/**
+ * The columns of an export that records each transaction as what it sent and what it received,
+ * as Koinly, CoinTracker, Awaken and ZenLedger files do: both sides make a trade, one side a
+ * deposit or a withdrawal.
+ */
+export interface SidedColumns {
+  sentAmount: string;
+  sentCurrency: string;
+  receivedAmount: string;
+  receivedCurrency: string;
+}
+
+const SIDE_PATTERNS: Record<keyof SidedColumns, RegExp> = {
+  sentAmount: /^(?:sent|out|outgoing)\s*(?:amount|quantity|qty)$/i,
+  sentCurrency: /^(?:sent|out|outgoing)\s*(?:currency|asset|coin)$/i,
+  receivedAmount: /^(?:received|in|incoming)\s*(?:amount|quantity|qty)$/i,
+  receivedCurrency: /^(?:received|in|incoming)\s*(?:currency|asset|coin)$/i,
+};
+
+/** Header names such exports give the column that says what kind of transaction a row is. */
+const LABEL_COLUMN = /^(?:label|tag|type|transaction\s*type|category)$/i;
+
+/** The sent and received columns of a sided export, when the header has all four. */
+export function sidedColumns(header: readonly string[]): SidedColumns | undefined {
+  const find = (pattern: RegExp): string | undefined => header.find(name => pattern.test(name.trim()));
+  const sentAmount = find(SIDE_PATTERNS.sentAmount);
+  const sentCurrency = find(SIDE_PATTERNS.sentCurrency);
+  const receivedAmount = find(SIDE_PATTERNS.receivedAmount);
+  const receivedCurrency = find(SIDE_PATTERNS.receivedCurrency);
+  if (!sentAmount || !sentCurrency || !receivedAmount || !receivedCurrency)
+    return undefined;
+  return { sentAmount, sentCurrency, receivedAmount, receivedCurrency };
+}
+
+/** A row that fills both amounts is a trade; any other row is an event. */
+export function sidedRoute(sides: SidedColumns): Condition[] {
+  return [
+    { kind: ConditionKind.filled, column: sides.sentAmount },
+    { kind: ConditionKind.filled, column: sides.receivedAmount },
+  ];
+}
+
+/** An event's Type when its label says nothing: a deposit when it received, a withdrawal when it sent. */
+export function sideTypeFallbacks(receivedAmount: string): Fallback[] {
+  return [
+    { when: [{ kind: ConditionKind.filled, column: receivedAmount }], source: { kind: SourceKind.constant, value: 'Deposit' } },
+    { source: { kind: SourceKind.constant, value: 'Withdrawal' } },
+  ];
+}
+
+const column = (name: string): ValueSource => ({ kind: SourceKind.column, column: name });
+
+/**
+ * The mapping of a sided export: trades take each side as it is, and an event takes the side it
+ * has, received first. Fee, timestamp and note come from the header names as for other files.
+ */
+function suggestSidedFields(header: readonly string[], sides: SidedColumns): Recipe['fields'] {
+  const taken = new Set<string>(Object.values(sides));
+  const label = header.find(name => !taken.has(name) && LABEL_COLUMN.test(name.trim()));
+  if (label)
+    taken.add(label);
+  const fields: Recipe['fields'] = {
+    [RotkiColumn.location]: { source: { kind: SourceKind.constant, value: DEFAULT_LOCATION } },
+    [RotkiColumn.spendAmount]: { source: column(sides.sentAmount) },
+    [RotkiColumn.spendCurrency]: { source: column(sides.sentCurrency) },
+    [RotkiColumn.receiveAmount]: { source: column(sides.receivedAmount) },
+    [RotkiColumn.receiveCurrency]: { source: column(sides.receivedCurrency) },
+    [RotkiColumn.amount]: { source: column(sides.receivedAmount), fallbacks: [{ source: column(sides.sentAmount) }], absolute: true },
+    [RotkiColumn.currency]: { source: column(sides.receivedCurrency), fallbacks: [{ source: column(sides.sentCurrency) }] },
+    [RotkiColumn.type]: {
+      source: label ? column(label) : { kind: SourceKind.empty },
+      fallbacks: sideTypeFallbacks(sides.receivedAmount),
+    },
+  };
+  for (const name of [RotkiColumn.fee, RotkiColumn.feeCurrency, RotkiColumn.description, RotkiColumn.timestamp]) {
+    const patterns = PATTERNS[name];
+    const match = patterns ? findColumn(header, patterns, taken) : undefined;
+    if (match)
+      taken.add(match);
+    fields[name] = { source: match ? column(match) : { kind: SourceKind.empty } };
+  }
+  return fields;
+}
+
+/** A first guess at a recipe's mapping, and for `both` at which rows are trades. */
+export function suggestMapping(header: readonly string[], format: RecipeFormat): Pick<Recipe, 'fields' | 'route'> {
+  if (format !== RecipeFormat.both)
+    return { fields: suggestFields(header, format) };
+  const sides = sidedColumns(header);
+  if (sides)
+    return { fields: suggestSidedFields(header, sides), route: sidedRoute(sides) };
+  return { fields: { ...suggestFields(header, RotkiFormat.trades), ...suggestFields(header, RotkiFormat.events) }, route: [] };
+}
+
 /** Share of the format's required columns, other than Location, that the header suggestions fill. */
 function coverage(header: readonly string[], format: RotkiFormat): number {
   const fields = suggestFields(header, format);
@@ -63,11 +157,13 @@ function coverage(header: readonly string[], format: RotkiFormat): number {
 }
 
 /**
- * The format that likely fits the file: the one whose required columns the suggestions fill
- * best, helped by a type column of deposits and rewards for events, or a buy/sell column for
- * trades. Ties go to trades.
+ * The format that likely fits the file: both for a sided export, otherwise the one whose
+ * required columns the suggestions fill best, helped by a type column of deposits and rewards
+ * for events, or a buy/sell column for trades. Ties go to trades.
  */
-export function suggestFormat(header: readonly string[], samples: (column: string) => string[]): RotkiFormat {
+export function suggestFormat(header: readonly string[], samples: (column: string) => string[]): RecipeFormat {
+  if (sidedColumns(header))
+    return RecipeFormat.both;
   let events = coverage(header, RotkiFormat.events);
   let trades = coverage(header, RotkiFormat.trades);
   const type = suggestFields(header, RotkiFormat.events)[RotkiColumn.type]?.source;
@@ -135,6 +231,8 @@ const EVENT_TYPE_GUESSES: readonly [RegExp, RotkiEventType][] = [
   [/reward|interest|earn|airdrop|bonus|income|cashback|referral|distribution|mining/i, 'Income'],
   [/loss|liquidat/i, 'Loss'],
   [/fee|spend|payment|purchase/i, 'Spend'],
+  [/^(?:receive|received|incoming|transfer in)$/i, 'Deposit'],
+  [/^(?:send|sent|outgoing|transfer out)$/i, 'Withdrawal'],
 ];
 
 /** The rotki event type an exchange's label most likely means, if any. */

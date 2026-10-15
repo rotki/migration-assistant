@@ -4,7 +4,7 @@ import { getRotkiColumns, isRotkiEventType, ROTKI_LOCATIONS, RotkiColumn, RotkiF
 import { parseDate } from './dates';
 import { type Message, rejection, RejectionCode } from './messages';
 import { absoluteDecimal, isNegativeDecimal, isZeroDecimal, normalizeDecimal } from './numbers';
-import { AMOUNT_COLUMNS, type FieldMapping, isRequiredColumn, mappedValue, type Recipe, SKIP_ROW, SourceKind, splitValue, validateRecipe } from './recipe';
+import { AMOUNT_COLUMNS, type FieldMapping, isRequiredColumn, mappedValue, meetsAll, type Recipe, RecipeFormat, SKIP_ROW, SourceKind, splitValue, validateRecipe, type ValueSource } from './recipe';
 
 /**
  * Where a rejection is fixed: in the column mapping, or in the date and number settings, as
@@ -37,10 +37,14 @@ interface Skipped {
   kind: typeof RowKind.skipped;
 }
 
-export type RowResult =
-  | { kind: typeof RowKind.converted; values: string[] }
-  | Skipped
-  | Rejection;
+export interface Converted {
+  kind: typeof RowKind.converted;
+  /** The rotki file the row belongs in; a recipe of format `both` writes some rows to each. */
+  format: RotkiFormat;
+  values: string[];
+}
+
+export type RowResult = Converted | Skipped | Rejection;
 
 export type RowConverter = (record: readonly string[]) => RowResult;
 
@@ -65,12 +69,27 @@ function reject<T>(column: RotkiColumn, reason: Message<RejectionCode>, cause: R
   return err({ kind: RowKind.rejected, reason, column, cause });
 }
 
-/** Reads a mapping's source from a record; `index` is its source column's place in the header. */
-function sourceValue(mapping: FieldMapping, record: readonly string[], index: number): string {
-  const { source } = mapping;
+/** Reads a source column of a record by its header name. */
+type Cell = (column: string) => string;
+
+function sourceText(source: ValueSource, cell: Cell): string {
   if (source.kind === SourceKind.column)
-    return record[index] ?? '';
+    return cell(source.column);
   return source.kind === SourceKind.constant ? source.value : '';
+}
+
+/**
+ * A mapping's value for a record: its source, or else the first fallback whose conditions hold
+ * that gives a value, split and trimmed. Empty when none does.
+ */
+function mappingValue(mapping: FieldMapping, cell: Cell): string {
+  const sources = [mapping.source, ...(mapping.fallbacks ?? []).filter(fallback => meetsAll(fallback.when, cell)).map(fallback => fallback.source)];
+  for (const source of sources) {
+    const value = splitValue(sourceText(source, cell), mapping.split).trim();
+    if (value !== '')
+      return value;
+  }
+  return '';
 }
 
 function convertAmount(column: RotkiColumn, raw: string, recipe: Recipe): Result<string, RowProblem> {
@@ -121,10 +140,15 @@ function swapSides(row: Row): Row {
   return row;
 }
 
-const toRowResult = match<string[], RowProblem, RowResult>({
-  ok: values => ({ kind: RowKind.converted, values }),
-  err: problem => problem,
-});
+/** The first place of each header name, so a source column is found without scanning the header per value. */
+function headerIndexes(header: readonly string[]): ReadonlyMap<string, number> {
+  const indexes = new Map<string, number>();
+  for (const [index, name] of header.entries()) {
+    if (!indexes.has(name))
+      indexes.set(name, index);
+  }
+  return indexes;
+}
 
 /**
  * Builds the function that turns one source record into a rotki row. Throws a
@@ -135,29 +159,30 @@ export function createRowConverter(recipe: Recipe, header: readonly string[]): R
   if (problems.length > 0)
     throw new RecipeError(problems);
 
-  const columns = getRotkiColumns(recipe.format);
-  const swapIndex = recipe.format === RotkiFormat.trades && recipe.swap ? header.indexOf(recipe.swap.column) : -1;
+  const indexes = headerIndexes(header);
   const swapValues = new Set(recipe.swap?.values.map(value => value.trim().toLowerCase()) ?? []);
-  // Looked up once here, not per record: the header does not change while a file converts.
-  const sourceIndexes = new Map(columns.map((column) => {
-    const source = recipe.fields[column]?.source;
-    return [column, source?.kind === SourceKind.column ? header.indexOf(source.column) : -1];
-  }));
 
-  function rawValue(column: RotkiColumn, record: readonly string[]): Result<string, RowProblem> {
+  /** The rotki file a record goes to: the recipe's own, or for `both`, trades when it meets the route. */
+  function outputFor(cell: Cell): RotkiFormat {
+    if (recipe.format !== RecipeFormat.both)
+      return recipe.format;
+    return meetsAll(recipe.route, cell) ? RotkiFormat.trades : RotkiFormat.events;
+  }
+
+  function rawValue(column: RotkiColumn, cell: Cell): Result<string, RowProblem> {
     const mapping = recipe.fields[column];
     if (!mapping)
       return ok('');
-    const value = splitValue(sourceValue(mapping, record, sourceIndexes.get(column) ?? -1), mapping.split).trim();
+    const value = mappingValue(mapping, cell);
     const mapped = mappedValue(mapping.values, value);
     if (mapped === SKIP_ROW)
       return err(SKIPPED);
     return ok((mapped ?? value).trim());
   }
 
-  function convertRaw(column: RotkiColumn, raw: string): Result<string, RowProblem> {
+  function convertRaw(output: RotkiFormat, column: RotkiColumn, raw: string): Result<string, RowProblem> {
     if (raw === '')
-      return isRequiredColumn(recipe.format, column) ? reject(column, rejection(RejectionCode.columnEmpty, { column })) : ok('');
+      return isRequiredColumn(output, column) ? reject(column, rejection(RejectionCode.columnEmpty, { column })) : ok('');
     if (AMOUNT_COLUMNS.has(column))
       return convertAmount(column, raw, recipe);
     if (column === RotkiColumn.timestamp)
@@ -167,8 +192,8 @@ export function createRowConverter(recipe: Recipe, header: readonly string[]): R
     return column === RotkiColumn.type ? convertType(raw) : ok(raw);
   }
 
-  function isSell(record: readonly string[]): boolean {
-    return swapIndex !== -1 && swapValues.has((record[swapIndex] ?? '').trim().toLowerCase());
+  function isSell(output: RotkiFormat, cell: Cell): boolean {
+    return output === RotkiFormat.trades && !!recipe.swap && swapValues.has(cell(recipe.swap.column).trim().toLowerCase());
   }
 
   /** A value mapped to skip skips the row, whatever else is wrong with it. */
@@ -177,11 +202,19 @@ export function createRowConverter(recipe: Recipe, header: readonly string[]): R
     return skipped ? err(SKIPPED) : all(results);
   }
 
-  return record => pipe(
-    collect(columns.map(column => pipe(rawValue(column, record), flatMap(raw => convertRaw(column, raw))))),
-    flatMap(values => settleFee(new Map(columns.map((column, index) => [column, values[index] ?? ''])))),
-    map(row => (isSell(record) ? swapSides(row) : row)),
-    map(row => columns.map(column => row.get(column) ?? '')),
-    toRowResult,
-  );
+  return (record) => {
+    const cell: Cell = column => record[indexes.get(column) ?? -1] ?? '';
+    const output = outputFor(cell);
+    const columns = getRotkiColumns(output);
+    return pipe(
+      collect(columns.map(column => pipe(rawValue(column, cell), flatMap(raw => convertRaw(output, column, raw))))),
+      flatMap(values => settleFee(new Map(columns.map((column, index) => [column, values[index] ?? ''])))),
+      map(row => (isSell(output, cell) ? swapSides(row) : row)),
+      map(row => columns.map(column => row.get(column) ?? '')),
+      match<string[], RowProblem, RowResult>({
+        ok: values => ({ kind: RowKind.converted, format: output, values }),
+        err: problem => problem,
+      }),
+    );
+  };
 }

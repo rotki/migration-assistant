@@ -2,8 +2,8 @@
 import { RuiCheckbox, RuiIcon, RuiMenuSelect, RuiTextField } from '@rotki/ui-library';
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { AMOUNT_COLUMNS, type FieldMapping, isRequiredColumn, mappedValue, SourceKind, splitValue, type ValueSource } from '@/modules/convert/recipe';
-import { guessEventTypes, guessSeparator } from '@/modules/convert/suggest';
+import { AMOUNT_COLUMNS, columnOutput, type Fallback, type FieldMapping, isRequiredColumn, mappedValue, RecipeFormat, SourceKind, splitValue, type ValueSource } from '@/modules/convert/recipe';
+import { guessEventTypes, guessSeparator, sideTypeFallbacks } from '@/modules/convert/suggest';
 import { DEFAULT_LOCATION, ROTKI_EVENT_TYPES, ROTKI_LOCATIONS, RotkiColumn } from '@/modules/rotki-format';
 import { ValueMapMode } from '@/modules/wizard/types';
 import { useWizard } from '@/modules/wizard/use-wizard';
@@ -49,13 +49,16 @@ const mapping = computed<FieldMapping>({
 });
 
 const required = computed<boolean>(() => isRequiredColumn(recipe.value.format, column));
+
+/** A required field may still leave its own source empty when a fallback gives the value. */
+const canLeaveEmpty = computed<boolean>(() => !required.value || (mapping.value.fallbacks ?? []).length > 0);
 const isAmount = AMOUNT_COLUMNS.has(column);
 const isCurrency = column.includes('Currency');
 
 const sourceOptions = computed<{ id: string; label: string }[]>(() => [
   ...header.value.map(name => ({ id: `${COLUMN_PREFIX}${name}`, label: name })),
   { id: CONSTANT, label: t('field_mapping.source.constant') },
-  ...(required.value ? [] : [{ id: EMPTY, label: t('field_mapping.source.empty') }]),
+  ...(canLeaveEmpty.value ? [{ id: EMPTY, label: t('field_mapping.source.empty') }] : []),
 ]);
 
 const sourceId = computed<string>({
@@ -71,7 +74,7 @@ const sourceId = computed<string>({
       source = { kind: SourceKind.constant, value: column === RotkiColumn.location ? DEFAULT_LOCATION : '' };
     else if (id.startsWith(COLUMN_PREFIX))
       source = { kind: SourceKind.column, column: id.slice(COLUMN_PREFIX.length) };
-    mapping.value = { source, absolute: mapping.value.absolute };
+    mapping.value = { source, absolute: mapping.value.absolute, fallbacks: mapping.value.fallbacks };
     if (column === RotkiColumn.type && source.kind === SourceKind.column)
       guessTypes();
   },
@@ -79,8 +82,62 @@ const sourceId = computed<string>({
 
 const rawSamples = computed<string[]>(() => {
   const { source } = mapping.value;
-  return source.kind === SourceKind.column ? columnSamples(source.column) : [];
+  return source.kind === SourceKind.column ? columnSamples(source.column, columnOutput(recipe.value.format, column)) : [];
 });
+
+const NO_FALLBACK = '__none__';
+
+const isBoth = computed<boolean>(() => recipe.value.format === RecipeFormat.both);
+
+/** The column a received amount comes from, which tells a deposit from a withdrawal. */
+const receivedColumn = computed<string | undefined>(() => {
+  const source = recipe.value.fields[RotkiColumn.receiveAmount]?.source;
+  return source?.kind === SourceKind.column ? source.column : undefined;
+});
+
+function setFallbacks(fallbacks: Fallback[]): void {
+  const next = { ...mapping.value };
+  if (fallbacks.length > 0)
+    next.fallbacks = fallbacks;
+  else
+    delete next.fallbacks;
+  mapping.value = next;
+}
+
+/** One unconditional fallback column, the shape the wizard edits; anything else came from a recipe file. */
+function singleFallbackColumn(fallbacks: readonly Fallback[]): string | undefined {
+  const [only] = fallbacks;
+  return fallbacks.length === 1 && only && !only.when && only.source.kind === SourceKind.column ? only.source.column : undefined;
+}
+
+const fallbacks = computed<readonly Fallback[]>(() => mapping.value.fallbacks ?? []);
+
+const typeBySide = computed<boolean>({
+  get: () => !!receivedColumn.value && JSON.stringify(fallbacks.value) === JSON.stringify(sideTypeFallbacks(receivedColumn.value)),
+  set: (enabled) => {
+    setFallbacks(enabled && receivedColumn.value ? sideTypeFallbacks(receivedColumn.value) : []);
+  },
+});
+
+const fallbackColumn = computed<string>({
+  get: () => singleFallbackColumn(fallbacks.value) ?? NO_FALLBACK,
+  set: (id) => {
+    setFallbacks(id === NO_FALLBACK ? [] : [{ source: { kind: SourceKind.column, column: id } }]);
+  },
+});
+
+/** The wizard offers a fallback for an event's currency and amount, which a row has on either side. */
+const offersFallbackColumn = column === RotkiColumn.currency || column === RotkiColumn.amount;
+
+/** Fallbacks the guided controls cannot show, as from a hand-written recipe. */
+const hasCustomFallbacks = computed<boolean>(() => fallbacks.value.length > 0
+  && !(column === RotkiColumn.type && typeBySide.value)
+  && !(offersFallbackColumn && singleFallbackColumn(fallbacks.value) !== undefined));
+
+const fallbackOptions = computed<{ id: string; label: string }[]>(() => [
+  { id: NO_FALLBACK, label: t('field_mapping.fallback.none') },
+  ...header.value.map(name => ({ id: name, label: name })),
+]);
 
 /** Sample values after the split, as the converter sees them. */
 const samples = computed<string[]>(() => rawSamples.value.map(value => splitValue(value, mapping.value.split)));
@@ -282,6 +339,37 @@ const typeOptions = ROTKI_EVENT_TYPES.map(id => ({ id, label: id }));
             </template>
           </p>
         </div>
+
+        <template v-if="isBoth">
+          <p
+            v-if="hasCustomFallbacks"
+            class="text-sm text-rui-text-secondary"
+            data-testid="custom-fallbacks"
+          >
+            {{ t('field_mapping.fallback.custom', { count: fallbacks.length }, fallbacks.length) }}
+          </p>
+          <RuiCheckbox
+            v-else-if="column === RotkiColumn.type"
+            v-model="typeBySide"
+            :disabled="!receivedColumn"
+            size="sm"
+            hide-details
+            :label="t('field_mapping.fallback.type_by_side')"
+            data-testid="type-by-side"
+          />
+          <RuiMenuSelect
+            v-else-if="offersFallbackColumn"
+            v-model="fallbackColumn"
+            :options="fallbackOptions"
+            key-attr="id"
+            text-attr="label"
+            dense
+            hide-details
+            :label="t('field_mapping.fallback.label')"
+            class="sm:max-w-[50%]"
+            data-testid="fallback-column"
+          />
+        </template>
 
         <p
           v-if="column === RotkiColumn.location && isExternal"

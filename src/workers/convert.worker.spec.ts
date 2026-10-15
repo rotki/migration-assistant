@@ -4,6 +4,7 @@ import { message, MessageCode } from '@/modules/convert/messages';
 import { type Recipe, serializeRecipe } from '@/modules/convert/recipe';
 import { RotkiFormat } from '@/modules/rotki-format';
 import { englishTexts } from '@/test-utils/messages';
+import { SIDED_HEADER, sidedRecipe } from '@/test-utils/recipes';
 import { type FakeStorage, installFakeStorage } from '@/test-utils/storage';
 
 const CSV = [
@@ -14,7 +15,7 @@ const CSV = [
 ].join('\n');
 
 const recipe: Recipe = {
-  version: 1,
+  version: 2,
   name: '',
   input: { encoding: 'utf-8', delimiter: ',', headerIndex: 0 },
   format: RotkiFormat.trades,
@@ -35,7 +36,7 @@ function request(overrides: Record<string, unknown> = {}): Record<string, unknow
     type: 'start',
     file: new File([CSV], 'kraken.csv'),
     recipe: JSON.parse(serializeRecipe(recipe)),
-    outputName: 'converted.csv',
+    outputNames: { trades: 'converted.csv', events: 'events.csv' },
     rejectedName: 'rejected.csv',
     texts: englishTexts(),
     ...overrides,
@@ -72,13 +73,25 @@ describe('the conversion worker', () => {
 
   it('converts the file into the output folder and reports the counts', async () => {
     const reply = await send(request());
-    expect(reply).toEqual({ type: 'done', stats: { bytesRead: CSV.length, totalBytes: CSV.length, converted: 1, skipped: 0, rejected: 1 } });
+    expect(reply).toEqual({
+      type: 'done',
+      stats: { bytesRead: CSV.length, totalBytes: CSV.length, converted: 1, convertedByFormat: { trades: 1, events: 0 }, skipped: 0, rejected: 1 },
+    });
     expect(storage.files.get('converted.csv')).toContain('kraken,EUR,30000,BTC,0.5,');
     expect(storage.files.get('rejected.csv')).toMatch(/^Date,Base,Quote,Amount,Total,Row,Reason\n.*,3,"Spend Amount ""abc"" is not a number with ""\."" as the decimal separator\."/);
   });
 
+  it('writes a file per format for a both recipe', async () => {
+    const sided = [SIDED_HEADER.join(','), '2024-03-05 12:00,30000,EUR,0.5,BTC,,,,', '2024-03-06 08:00,,,1.5,ETH,,,,', ''].join('\n');
+    const reply = await send(request({ file: new File([sided], 'export.csv'), recipe: JSON.parse(serializeRecipe(sidedRecipe())) }));
+    expect(reply.type === 'done' && reply.stats.convertedByFormat).toEqual({ trades: 1, events: 1 });
+    expect(storage.files.get('converted.csv')).toContain('external,EUR,30000,BTC,0.5,');
+    expect(storage.files.get('events.csv')).toContain('Deposit,external,ETH,1.5,');
+    expect(storage.open.size).toBe(0);
+  });
+
   it('refuses a malformed request without touching storage', async () => {
-    const reply = await send(request({ outputName: '../escape.csv' }));
+    const reply = await send(request({ outputNames: { trades: '../escape.csv', events: 'events.csv' } }));
     expect(reply).toEqual({ type: 'failed', problems: [message(MessageCode.requestInvalidOutput)] });
     expect(storage.files.size).toBe(0);
   });

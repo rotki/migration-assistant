@@ -2,11 +2,11 @@
 import { RuiIcon, type RuiIcons } from '@rotki/ui-library';
 import { computed, nextTick, useTemplateRef } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { RotkiFormat } from '@/modules/rotki-format';
+import { RecipeFormat } from '@/modules/convert/recipe';
 import { useWizard } from '@/modules/wizard/use-wizard';
 
 interface Choice {
-  format: RotkiFormat;
+  format: RecipeFormat;
   icon: RuiIcons;
   title: string;
   description: string;
@@ -18,18 +18,25 @@ const { recipe, setFormat, suggestedFormat } = useWizard();
 
 const choices = computed<Choice[]>(() => [
   {
-    format: RotkiFormat.trades,
+    format: RecipeFormat.trades,
     icon: 'lu-arrow-left-right',
     title: t('step_target.choices.trades.title'),
     description: t('step_target.choices.trades.description'),
     example: t('step_target.choices.trades.example'),
   },
   {
-    format: RotkiFormat.events,
+    format: RecipeFormat.events,
     icon: 'lu-list',
     title: t('step_target.choices.events.title'),
     description: t('step_target.choices.events.description'),
     example: t('step_target.choices.events.example'),
+  },
+  {
+    format: RecipeFormat.both,
+    icon: 'lu-split',
+    title: t('step_target.choices.both.title'),
+    description: t('step_target.choices.both.description'),
+    example: t('step_target.choices.both.example'),
   },
 ]);
 
@@ -58,7 +65,7 @@ async function onKeydown(event: KeyboardEvent): Promise<void> {
   <div class="flex flex-col gap-4">
     <div
       ref="group"
-      class="grid grid-cols-1 md:grid-cols-2 gap-4"
+      class="grid grid-cols-1 md:grid-cols-3 gap-4"
       role="radiogroup"
       :aria-label="t('step_target.label')"
       @keydown="onKeydown($event)"

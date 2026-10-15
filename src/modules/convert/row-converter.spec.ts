@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { RotkiFormat } from '@/modules/rotki-format';
+import { SIDED_HEADER, sidedRecipe } from '@/test-utils/recipes';
 import { message, MessageCode } from './messages';
 import { parseRecipe, type Recipe, serializeRecipe, SKIP_ROW, validateRecipe } from './recipe';
 import { createRowConverter, RecipeError } from './row-converter';
@@ -9,7 +10,7 @@ const TRADE_HEADER = ['Date', 'Market', 'Side', 'Price', 'Size', 'Total', 'Fee',
 
 function tradeRecipe(overrides: Partial<Recipe> = {}): Recipe {
   return {
-    version: 1,
+    version: 2,
     name: 'Example exchange trades',
     input: { encoding: 'utf-8', delimiter: ',', headerIndex: 0 },
     format: RotkiFormat.trades,
@@ -37,6 +38,7 @@ describe('createRowConverter for trades', () => {
   it('converts a buy', () => {
     expect(convert(['2024-03-05 12:00:00', 'BTC/EUR', 'buy', '60000', '0.5', '30,000.00', '15', 'EUR'])).toEqual({
       kind: 'converted',
+      format: 'trades',
       values: ['kraken', 'EUR', '30000', 'BTC', '0.5', '15', 'EUR', '', String(Date.UTC(2024, 2, 5, 12))],
     });
   });
@@ -45,6 +47,7 @@ describe('createRowConverter for trades', () => {
     const result = convert(['2024-03-05 12:00:00', 'BTC/EUR', 'Sell', '60000', '0.5', '30000', '0.0001', 'XBT']);
     expect(result).toEqual({
       kind: 'converted',
+      format: 'trades',
       values: ['kraken', 'BTC', '0.5', 'EUR', '30000', '0.0001', 'BTC', '', String(Date.UTC(2024, 2, 5, 12))],
     });
   });
@@ -96,6 +99,7 @@ describe('createRowConverter for events', () => {
   it('maps exchange operations to rotki types', () => {
     expect(convert(['01/07/2024 14:00', 'Withdraw', 'ETH', '-1.5'])).toEqual({
       kind: 'converted',
+      format: 'events',
       values: ['Withdrawal', 'binance', 'ETH', '1.5', '', '', '', String(Date.UTC(2024, 6, 1, 12))],
     });
   });
@@ -127,6 +131,49 @@ describe('createRowConverter for events', () => {
   });
 });
 
+describe('createRowConverter for both', () => {
+  const convert = createRowConverter(sidedRecipe(), SIDED_HEADER);
+  const at = (hours: number): string => String(Date.UTC(2024, 2, 5, hours));
+
+  it('makes a trade of a row that sends and receives', () => {
+    expect(convert(['2024-03-05 12:00', '30000', 'EUR', '0.5', 'BTC', '15', 'EUR', '', 'Buy BTC'])).toEqual({
+      kind: 'converted',
+      format: 'trades',
+      values: ['external', 'EUR', '30000', 'BTC', '0.5', '15', 'EUR', 'Buy BTC', at(12)],
+    });
+  });
+
+  it('makes an event of a row with one side, taking the side it has', () => {
+    expect(convert(['2024-03-05 13:00', '', '', '1.5', 'ETH', '', '', '', ''])).toEqual({
+      kind: 'converted',
+      format: 'events',
+      values: ['Deposit', 'external', 'ETH', '1.5', '', '', '', at(13)],
+    });
+    expect(convert(['2024-03-05 14:00', '-0.25', 'ETH', '', '', '0.001', 'ETH', '', 'To cold storage'])).toEqual({
+      kind: 'converted',
+      format: 'events',
+      values: ['Withdrawal', 'external', 'ETH', '0.25', '0.001', 'ETH', 'To cold storage', at(14)],
+    });
+  });
+
+  it('types an event by its label first, and by its side only when the label is empty', () => {
+    const result = convert(['2024-03-05 15:00', '', '', '0.01', 'ETH', '', '', 'staking', '']);
+    expect(result.kind === 'converted' && result.values[0]).toBe('Staking');
+  });
+
+  it('rejects a label nobody mapped instead of typing it by its side', () => {
+    expect(convert(['2024-03-05 16:00', '', '', '5', 'XYZ', '', '', 'mystery', ''])).toMatchObject({
+      kind: 'rejected',
+      column: 'Type',
+      reason: message(MessageCode.unknownType, { value: 'mystery' }),
+    });
+  });
+
+  it('rejects a row with no side at all', () => {
+    expect(convert(['2024-03-05 17:00', '', '', '', '', '', '', '', ''])).toMatchObject({ kind: 'rejected', column: 'Currency' });
+  });
+});
+
 describe('recipes', () => {
   it('survive a save and load', () => {
     const recipe = tradeRecipe();
@@ -135,7 +182,7 @@ describe('recipes', () => {
 
   it('refuse files that are not recipes, saying why', () => {
     expect(parseRecipe('not json')).toEqual({ ok: false, error: message(MessageCode.notJson) });
-    expect(parseRecipe('{"version":2}')).toEqual({ ok: false, error: message(MessageCode.notRecipe) });
+    expect(parseRecipe('{"version":3}')).toEqual({ ok: false, error: message(MessageCode.notRecipe) });
     const withoutDates = { ...tradeRecipe(), dates: undefined };
     expect(parseRecipe(JSON.stringify(withoutDates))).toEqual({ ok: false, error: message(MessageCode.noDates) });
   });

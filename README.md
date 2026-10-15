@@ -1,13 +1,35 @@
 # rotki migration assistant
 
 Convert a CSV export from any exchange into one of the generic CSV formats
-[rotki](https://rotki.com) imports: generic trades or generic events.
+[rotki](https://rotki.com) imports: generic trades, generic events, or both from one file,
+as for exports of other tax tools where each row sends, receives or swaps.
 
 Everything runs in your browser. Files are read and converted inside the page, nothing is
 uploaded, and the deployed page ships a content security policy with `connect-src 'none'`,
 so the browser blocks any network request it would make.
 
 Live at <https://rotki.github.io/migration-assistant/>.
+
+## Recipes
+
+The mapping a conversion uses can be saved as a recipe file (`*.recipe.json`) and loaded on
+the first step next time, so an export from the same source converts without setting it up
+again. The format is `Recipe` in `src/modules/convert/recipe.ts`; this app writes version 2
+and still reads version 1 files.
+
+- `format` is `trades`, `events` or `both`.
+- `fields` maps each rotki column to a `source`: a column of the export, a fixed value or
+  nothing. A field can split the value (`BTC` from `BTC/EUR`), replace values through a
+  table, or drop the sign of an amount.
+- `fallbacks` on a field are tried in order when its source is empty, each when its
+  conditions hold, as an event's currency taken from `Sent Currency` when
+  `Received Currency` is empty.
+- `route`, for `both`: the conditions a row has to meet to become a trade. Every other row
+  becomes an event.
+- A condition tests one column of the row: `filled`, `empty`, or `one_of` a list of values.
+
+The wizard edits the common shapes of fallbacks and routes. A recipe file can hold any other
+combination, which the wizard then shows as it is.
 
 ## Verifying a deployment
 

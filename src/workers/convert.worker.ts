@@ -2,6 +2,7 @@
 import { type ConversionStats, convertStream, type TextSink } from '@/modules/convert/convert-stream';
 import { message, MessageCode, MessageError } from '@/modules/convert/messages';
 import { type ConversionMessage, MessageType, OUTPUT_DIRECTORY, problemsOf, readStartConversion, type StartConversion } from '@/modules/convert/protocol';
+import { outputFormats } from '@/modules/convert/recipe';
 
 declare const self: DedicatedWorkerGlobalScope;
 
@@ -55,19 +56,20 @@ function postFailure(error: unknown): void {
   post({ type: MessageType.failed, problems: problemsOf(error) });
 }
 
-/** Opens both output files, turning a refused storage request into an explanation. */
-async function openSinks(outputName: string, rejectedName: string): Promise<[FileSink, FileSink]> {
-  let output: FileSink | undefined;
+/** Opens the files in order, turning a refused storage request into an explanation. */
+async function openSinks(names: readonly string[]): Promise<FileSink[]> {
+  const opened: FileSink[] = [];
   try {
     const root = await navigator.storage.getDirectory();
     const directory = await root.getDirectoryHandle(OUTPUT_DIRECTORY, { create: true });
-    output = await openSink(directory, outputName);
-    return [output, await openSink(directory, rejectedName)];
+    for (const name of names)
+      opened.push(await openSink(directory, name));
+    return opened;
   }
   catch (error) {
-    // The first file's handle holds a lock until it is closed; the storage error is the one to report.
+    // Each open handle holds a lock until it is closed; the storage error is the one to report.
     try {
-      output?.close();
+      closeAll(opened);
     }
     catch {}
     throw new MessageError(message(MessageCode.noStorage), { cause: error });
@@ -89,8 +91,13 @@ function closeAll(sinks: FileSink[]): void {
     throw failures[0];
 }
 
-async function start({ file, recipe, outputName, rejectedName, texts }: StartConversion): Promise<void> {
-  const [output, rejected] = await openSinks(outputName, rejectedName);
+async function start({ file, recipe, outputNames, rejectedName, texts }: StartConversion): Promise<void> {
+  const formats = outputFormats(recipe.format);
+  const sinks = await openSinks([...formats.map(format => outputNames[format]), rejectedName]);
+  const outputs = Object.fromEntries(formats.map((format, index) => [format, sinks[index]]));
+  const rejected = sinks[formats.length];
+  if (!rejected)
+    throw new Error('The rejected file did not open.');
   let lastProgress = 0;
 
   let stats: ConversionStats;
@@ -99,7 +106,7 @@ async function start({ file, recipe, outputName, rejectedName, texts }: StartCon
       stream: file.stream(),
       totalBytes: file.size,
       recipe,
-      output,
+      outputs,
       rejected,
       texts,
       onProgress(update: ConversionStats): void {
@@ -114,13 +121,13 @@ async function start({ file, recipe, outputName, rejectedName, texts }: StartCon
   catch (error) {
     // The conversion error is the one to report; a close failing after it would hide it.
     try {
-      closeAll([output, rejected]);
+      closeAll(sinks);
     }
     catch {}
     throw error;
   }
   // Closing writes the last block, so a full disk can still fail the run here.
-  closeAll([output, rejected]);
+  closeAll(sinks);
   post({ type: MessageType.done, stats });
 }
 

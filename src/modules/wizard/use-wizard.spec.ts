@@ -35,6 +35,38 @@ const TRADES = [
   '',
 ].join('\n');
 
+const SIDED = [
+  'Date,Sent Amount,Sent Currency,Received Amount,Received Currency,Fee Amount,Fee Currency,Label,Description',
+  '2024-03-05 12:00:00,30000,EUR,0.5,BTC,15,EUR,Buy,',
+  '2024-03-06 08:00:00,,,1.5,ETH,,,,',
+  '2024-03-07 09:00:00,,,0.01,ETH,,,staking reward,',
+  '2024-03-08 10:00:00,0.25,ETH,,,,,Receive,',
+  '',
+].join('\n');
+
+describe('the wizard with a sided export', () => {
+  it('suggests both, routes the rows and previews each file', async () => {
+    const wizard = setup();
+    await wizard.loadFile(new File([SIDED], 'tax-tool.csv'));
+
+    expect(wizard.suggestedFormat.value).toBe('both');
+    expect(wizard.recipe.value.route).toEqual([{ kind: 'filled', column: 'Sent Amount' }, { kind: 'filled', column: 'Received Amount' }]);
+    expect(wizard.preview.value.rows.map(row => row.result.kind === 'converted' ? row.result.format : row.result.kind))
+      .toEqual(['trades', 'events', 'events', 'events']);
+  });
+
+  it('guesses event types from the labels of event rows only', async () => {
+    const wizard = setup();
+    await wizard.loadFile(new File([SIDED], 'tax-tool.csv'));
+
+    // "Buy" labels a trade, so it never needs an event type. A label beats the side, even "Receive" on a row that sends.
+    expect(wizard.recipe.value.fields.Type?.values).toEqual({ 'staking reward': 'Staking', 'Receive': 'Deposit' });
+    expect(wizard.columnSamples('Label', RotkiFormat.events)).toEqual(['staking reward', 'Receive']);
+    expect(wizard.columnSamples('Label', RotkiFormat.trades)).toEqual(['Buy']);
+    expect(wizard.columnSamples('Label')).toEqual(['Buy', 'staking reward', 'Receive']);
+  });
+});
+
 describe('the wizard', () => {
   it('detects the delimiter, the header below a preamble and the decimal separator', async () => {
     const wizard = setup();
@@ -69,7 +101,7 @@ describe('the wizard', () => {
     expect(swap).toEqual({ column: 'type', values: ['sell'] });
 
     const second = wizard.preview.value.rows[1]?.result;
-    expect(second).toEqual({ kind: 'converted', values: ['kraken', 'ETH', '2', 'EUR', '6401', '10.24', 'EUR', 'TX2', String(Date.UTC(2024, 2, 6, 8, 1, 2))] });
+    expect(second).toEqual({ kind: 'converted', format: 'trades', values: ['kraken', 'ETH', '2', 'EUR', '6401', '10.24', 'EUR', 'TX2', String(Date.UTC(2024, 2, 6, 8, 1, 2))] });
   });
 
   it('reports what the recipe misses instead of a preview', async () => {

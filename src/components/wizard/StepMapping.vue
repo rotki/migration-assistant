@@ -2,8 +2,9 @@
 import { RuiCheckbox, RuiMenuSelect } from '@rotki/ui-library';
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { type Condition, ConditionKind, meetsAll, RecipeFormat } from '@/modules/convert/recipe';
 import { distinctValues } from '@/modules/convert/suggest';
-import { RotkiColumn, RotkiFormat } from '@/modules/rotki-format';
+import { RotkiColumn } from '@/modules/rotki-format';
 import { useWizard } from '@/modules/wizard/use-wizard';
 import FieldMappingEditor from './FieldMappingEditor.vue';
 
@@ -15,6 +16,7 @@ const GroupId = {
   note: 'note',
   whatHappened: 'what_happened',
   assetAndAmount: 'asset_and_amount',
+  oneSide: 'one_side',
 } as const;
 
 type GroupId = (typeof GroupId)[keyof typeof GroupId];
@@ -25,18 +27,26 @@ interface FieldGroup {
 }
 
 const { t } = useI18n({ useScope: 'global' });
-const { columnSamples, header, recipe } = useWizard();
+const { columnSamples, header, recipe, rows } = useWizard();
 
-/** Every rotki column of a format, in sections that read as the record they describe. */
-const GROUPS: Record<RotkiFormat, FieldGroup[]> = {
-  [RotkiFormat.trades]: [
+/** Every rotki column a recipe maps, in sections that read as the record they describe. */
+const GROUPS: Record<RecipeFormat, FieldGroup[]> = {
+  [RecipeFormat.both]: [
+    { id: GroupId.spent, columns: [RotkiColumn.spendCurrency, RotkiColumn.spendAmount] },
+    { id: GroupId.received, columns: [RotkiColumn.receiveCurrency, RotkiColumn.receiveAmount] },
+    { id: GroupId.oneSide, columns: [RotkiColumn.type, RotkiColumn.currency, RotkiColumn.amount] },
+    { id: GroupId.fee, columns: [RotkiColumn.fee, RotkiColumn.feeCurrency] },
+    { id: GroupId.whenAndWhere, columns: [RotkiColumn.timestamp, RotkiColumn.location] },
+    { id: GroupId.note, columns: [RotkiColumn.description] },
+  ],
+  [RecipeFormat.trades]: [
     { id: GroupId.spent, columns: [RotkiColumn.spendCurrency, RotkiColumn.spendAmount] },
     { id: GroupId.received, columns: [RotkiColumn.receiveCurrency, RotkiColumn.receiveAmount] },
     { id: GroupId.fee, columns: [RotkiColumn.fee, RotkiColumn.feeCurrency] },
     { id: GroupId.whenAndWhere, columns: [RotkiColumn.timestamp, RotkiColumn.location] },
     { id: GroupId.note, columns: [RotkiColumn.description] },
   ],
-  [RotkiFormat.events]: [
+  [RecipeFormat.events]: [
     { id: GroupId.whatHappened, columns: [RotkiColumn.type] },
     { id: GroupId.assetAndAmount, columns: [RotkiColumn.currency, RotkiColumn.amount] },
     { id: GroupId.fee, columns: [RotkiColumn.fee, RotkiColumn.feeCurrency] },
@@ -53,10 +63,53 @@ const groupTitles = computed<Record<GroupId, string>>(() => ({
   [GroupId.note]: t('step_mapping.groups.note'),
   [GroupId.whatHappened]: t('step_mapping.groups.what_happened'),
   [GroupId.assetAndAmount]: t('step_mapping.groups.asset_and_amount'),
+  [GroupId.oneSide]: t('step_mapping.groups.one_side'),
 }));
 
 const groups = computed<FieldGroup[]>(() => GROUPS[recipe.value.format]);
-const isTrades = computed<boolean>(() => recipe.value.format === RotkiFormat.trades);
+const isTrades = computed<boolean>(() => recipe.value.format === RecipeFormat.trades);
+const isBoth = computed<boolean>(() => recipe.value.format === RecipeFormat.both);
+
+/** The two columns of the guided rule, a trade when both have a value; `undefined` for a rule from a recipe file. */
+function guidedRouteColumns(route: readonly Condition[]): [string, string] | undefined {
+  const [first, second] = route;
+  if (route.length !== 2 || first?.kind !== ConditionKind.filled || second?.kind !== ConditionKind.filled)
+    return undefined;
+  return [first.column, second.column];
+}
+
+const route = computed<readonly Condition[]>(() => recipe.value.route ?? []);
+const isGuidedRoute = computed<boolean>(() => route.value.length === 0 || guidedRouteColumns(route.value) !== undefined);
+
+function setRouteColumn(position: 0 | 1, column: string | undefined): void {
+  const columns: (string | undefined)[] = [...(guidedRouteColumns(route.value) ?? ['', ''])];
+  columns[position] = column;
+  recipe.value.route = columns
+    .filter((name): name is string => !!name)
+    .map(name => ({ kind: ConditionKind.filled, column: name }));
+}
+
+const routeColumns = computed<[string, string]>(() => guidedRouteColumns(route.value) ?? [route.value[0]?.column ?? '', '']);
+
+/** How the rule splits the sample, so a rule that sends every row one way shows before converting. */
+const routeCounts = computed<{ trades: number; events: number }>(() => {
+  const names = header.value;
+  const trades = route.value.length === 0
+    ? 0
+    : rows.value.filter(record => meetsAll(route.value, name => record[names.indexOf(name)] ?? '')).length;
+  return { trades, events: rows.value.length - trades };
+});
+
+function conditionText(condition: Condition): string {
+  if (condition.kind === ConditionKind.oneOf)
+    return t('step_mapping.route.conditions.one_of', { column: condition.column, values: condition.values.join(', ') });
+  if (condition.kind === ConditionKind.empty)
+    return t('step_mapping.route.conditions.empty', { column: condition.column });
+  return t('step_mapping.route.conditions.filled', { column: condition.column });
+}
+
+/** A rule from a recipe file, in words; the guided controls only edit the two-column rule. */
+const routeSummary = computed<string>(() => route.value.map(conditionText).join(t('step_mapping.route.and')));
 
 const swapEnabled = computed<boolean>({
   get: () => !!recipe.value.swap,
@@ -101,6 +154,60 @@ function setSwapColumn(column: string | undefined): void {
     <p class="text-sm text-rui-text-secondary -mt-2">
       {{ t('step_mapping.matched_by_name') }}
     </p>
+
+    <section
+      v-if="isBoth"
+      class="flex flex-col gap-3 rounded-md border border-rui-divider p-4"
+      :aria-label="t('step_mapping.route.title')"
+      data-testid="route-section"
+    >
+      <h2 class="text-sm font-semibold uppercase tracking-wide text-rui-text-secondary">
+        {{ t('step_mapping.route.title') }}
+      </h2>
+      <p class="text-sm text-rui-text-secondary">
+        {{ t('step_mapping.route.explanation') }}
+      </p>
+      <div
+        v-if="isGuidedRoute"
+        class="grid grid-cols-1 sm:grid-cols-2 gap-3"
+      >
+        <RuiMenuSelect
+          :model-value="routeColumns[0]"
+          :options="columnOptions"
+          key-attr="id"
+          text-attr="label"
+          dense
+          hide-details
+          :label="t('step_mapping.route.first_column')"
+          data-testid="route-first"
+          @update:model-value="setRouteColumn(0, $event)"
+        />
+        <RuiMenuSelect
+          :model-value="routeColumns[1]"
+          :options="columnOptions"
+          key-attr="id"
+          text-attr="label"
+          dense
+          hide-details
+          :label="t('step_mapping.route.second_column')"
+          data-testid="route-second"
+          @update:model-value="setRouteColumn(1, $event)"
+        />
+      </div>
+      <p
+        v-else
+        class="text-sm"
+        data-testid="route-custom"
+      >
+        {{ t('step_mapping.route.custom', { rule: routeSummary }) }}
+      </p>
+      <p
+        class="text-sm text-rui-text-secondary"
+        data-testid="route-counts"
+      >
+        {{ t('step_mapping.route.counts', { trades: t('common.rows', routeCounts.trades), events: t('common.rows', routeCounts.events) }) }}
+      </p>
+    </section>
 
     <template
       v-for="group in groups"

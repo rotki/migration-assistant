@@ -50,7 +50,7 @@ function lastWorker(): FakeWorker {
 }
 
 const recipe: Recipe = {
-  version: 1,
+  version: 2,
   name: '',
   input: { encoding: 'utf-8', delimiter: ',', headerIndex: 0 },
   format: RotkiFormat.trades,
@@ -63,7 +63,7 @@ const file = new File(['a,b\n1,2\n'], 'kraken.csv');
 const texts = englishTexts();
 
 function stats(overrides: Partial<ConversionStats> = {}): ConversionStats {
-  return { bytesRead: 8, totalBytes: 8, converted: 1, skipped: 0, rejected: 0, ...overrides };
+  return { bytesRead: 8, totalBytes: 8, converted: 1, convertedByFormat: { trades: 1, events: 0 }, skipped: 0, rejected: 0, ...overrides };
 }
 
 let storage: FakeStorage;
@@ -73,7 +73,7 @@ let revoked: string[];
 
 /** Finishes the running conversion with these files written. */
 async function finish(converted: string, rejected?: string): Promise<void> {
-  storage.files.set('converted.csv', converted);
+  storage.files.set('trades.csv', converted);
   if (rejected !== undefined)
     storage.files.set('rejected.csv', rejected);
   lastWorker().reply({ type: 'done', stats: stats({ rejected: rejected === undefined ? 0 : 1 }) });
@@ -124,9 +124,29 @@ describe('useConversion', () => {
 
     await finish('Location\nkraken\n');
     expect(conversion.state.value).toBe('done');
-    expect(conversion.output.value).toEqual({ name: 'kraken-rotki-trades.csv', url: 'blob:1', size: 16 });
+    expect(conversion.outputs.value).toEqual([{ name: 'kraken-rotki-trades.csv', url: 'blob:1', size: 16, format: 'trades' }]);
     expect(conversion.rejected.value).toBeUndefined();
     expect(lastWorker().terminated).toBe(true);
+  });
+
+  it('offers both files of a both recipe, and only the ones that got rows', async () => {
+    const both: Recipe = { ...recipe, format: 'both', route: [{ kind: 'filled', column: 'a' }] };
+    await conversion.start(file, both, texts);
+    storage.files.set('trades.csv', 'Location\nkraken\n');
+    storage.files.set('events.csv', 'Type\n');
+    lastWorker().reply({ type: 'done', stats: stats({ converted: 1, convertedByFormat: { trades: 1, events: 0 } }) });
+    await vi.waitFor(() => expect(conversion.state.value).toBe('done'));
+    expect(conversion.outputs.value.map(output => output.name)).toEqual(['kraken-rotki-trades.csv']);
+
+    await conversion.start(file, both, texts);
+    storage.files.set('trades.csv', 'Location\nkraken\n');
+    storage.files.set('events.csv', 'Type\nDeposit\n');
+    lastWorker().reply({ type: 'done', stats: stats({ converted: 2, convertedByFormat: { trades: 1, events: 1 } }) });
+    await vi.waitFor(() => expect(conversion.state.value).toBe('done'));
+    expect(conversion.outputs.value.map(output => [output.format, output.name])).toEqual([
+      ['trades', 'kraken-rotki-trades.csv'],
+      ['events', 'kraken-rotki-events.csv'],
+    ]);
   });
 
   it('offers the rejected rows when there are some', async () => {
@@ -164,7 +184,7 @@ describe('useConversion', () => {
     await conversion.start(file, recipe, texts);
     lastWorker().reply({ type: 'done', stats: stats() });
     await vi.waitFor(() => expect(conversion.state.value).toBe('failed'));
-    expect(conversion.problems.value).toEqual([message(MessageCode.stoppedWithDetail, { detail: 'converted.csv was not found.' })]);
+    expect(conversion.problems.value).toEqual([message(MessageCode.stoppedWithDetail, { detail: 'trades.csv was not found.' })]);
   });
 
   it('still starts when old output cannot be cleared, leaving the worker to explain', async () => {
@@ -191,12 +211,12 @@ describe('useConversion', () => {
 
   it('stays reset when reset while the finished files are read back', async () => {
     await conversion.start(file, recipe, texts);
-    storage.files.set('converted.csv', 'Location\n');
+    storage.files.set('trades.csv', 'Location\n');
     lastWorker().reply({ type: 'done', stats: stats() });
     conversion.reset();
     await vi.waitFor(() => expect(revoked).toEqual(['blob:1']));
     expect(conversion.state.value).toBe('idle');
-    expect(conversion.output.value).toBeUndefined();
+    expect(conversion.outputs.value).toEqual([]);
   });
 
   it('stops the previous worker when started again', async () => {
@@ -213,7 +233,7 @@ describe('useConversion', () => {
     conversion.reset();
     expect(revoked).toEqual(['blob:1', 'blob:2']);
     expect(conversion.state.value).toBe('idle');
-    expect(conversion.output.value).toBeUndefined();
+    expect(conversion.outputs.value).toEqual([]);
     expect(conversion.stats.value).toBeUndefined();
   });
 
@@ -222,7 +242,7 @@ describe('useConversion', () => {
     await finish('Location\n');
     await conversion.start(file, recipe, texts);
     expect(revoked).toEqual(['blob:1']);
-    expect(conversion.output.value).toBeUndefined();
+    expect(conversion.outputs.value).toEqual([]);
   });
 
   it('stops a running worker when its scope ends', async () => {

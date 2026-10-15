@@ -1,6 +1,7 @@
 import type { ConversionStats } from './convert-stream';
 import { pipe } from 'plainfp';
 import { err, map, type Result } from 'plainfp/result';
+import { RotkiFormat } from '@/modules/rotki-format';
 import { byRejectionCode, type Message, message, MessageCode, MessageError, type RejectedFileTexts } from './messages';
 import { isObject, readRecipe, type Recipe } from './recipe';
 import { RecipeError } from './row-converter';
@@ -22,7 +23,8 @@ export interface StartConversion {
   type: typeof MessageType.start;
   file: Blob;
   recipe: Recipe;
-  outputName: string;
+  /** A file name per rotki format; the worker writes the ones the recipe's format needs. */
+  outputNames: Record<RotkiFormat, string>;
   rejectedName: string;
   /** The rejected file's texts in the page's language; the worker builds no text of its own. */
   texts: RejectedFileTexts;
@@ -50,20 +52,33 @@ function readTexts(value: unknown): RejectedFileTexts | undefined {
 export function readStartConversion(data: unknown): Result<StartConversion, Message> {
   if (!isObject(data))
     return err(message(MessageCode.requestNotObject));
-  const { type, file, recipe, outputName, rejectedName } = data;
+  const { type, file, recipe, rejectedName } = data;
   if (type !== MessageType.start)
     return err(message(MessageCode.requestUnknownType));
   if (!(file instanceof Blob))
     return err(message(MessageCode.requestNoFile));
-  if (typeof outputName !== 'string' || typeof rejectedName !== 'string' || !OUTPUT_NAME.test(outputName) || !OUTPUT_NAME.test(rejectedName) || outputName === rejectedName)
+  const outputNames = readOutputNames(data.outputNames);
+  if (!outputNames || typeof rejectedName !== 'string' || !distinctFileNames([...Object.values(outputNames), rejectedName]))
     return err(message(MessageCode.requestInvalidOutput));
   const texts = readTexts(data.texts);
   if (!texts)
     return err(message(MessageCode.requestInvalidTexts));
   return pipe(
     readRecipe(recipe),
-    map((read): StartConversion => ({ type, file, recipe: read, outputName, rejectedName, texts })),
+    map((read): StartConversion => ({ type, file, recipe: read, outputNames, rejectedName, texts })),
   );
+}
+
+function readOutputNames(value: unknown): Record<RotkiFormat, string> | undefined {
+  if (!isObject(value))
+    return undefined;
+  const { trades, events } = value;
+  return typeof trades === 'string' && typeof events === 'string' ? { [RotkiFormat.trades]: trades, [RotkiFormat.events]: events } : undefined;
+}
+
+/** Plain `.csv` names, none used twice, so no output overwrites another. */
+function distinctFileNames(names: readonly string[]): boolean {
+  return names.every(name => OUTPUT_NAME.test(name)) && new Set(names).size === names.length;
 }
 
 /**

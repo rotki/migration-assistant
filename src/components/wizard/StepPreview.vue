@@ -3,9 +3,10 @@ import { RuiAlert, RuiButton, RuiChip } from '@rotki/ui-library';
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { messageKey } from '@/modules/convert/messages';
+import { outputFormats } from '@/modules/convert/recipe';
 import { type Rejection, RejectionCause, RowKind } from '@/modules/convert/row-converter';
 import { useMessages } from '@/modules/convert/use-messages';
-import { getRotkiColumns } from '@/modules/rotki-format';
+import { getRotkiColumns, type RotkiColumn, RotkiFormat } from '@/modules/rotki-format';
 import { type PreviewRow, useWizard } from '@/modules/wizard/use-wizard';
 import ConvertedRows from './ConvertedRows.vue';
 
@@ -19,10 +20,35 @@ const fixSteps = computed<Record<RejectionCause, { index: number; label: string 
   [RejectionCause.format]: { index: 3, label: t('step_preview.fix_in', { step: t('convert_page.steps.formats.title') }) },
 }));
 
-const columns = computed(() => getRotkiColumns(recipe.value.format));
+interface ConvertedPreviewRow extends PreviewRow {
+  format: RotkiFormat;
+  values: string[];
+}
 
-const converted = computed<(PreviewRow & { values: string[] })[]>(() => preview.value.rows.flatMap(row =>
-  row.result.kind === RowKind.converted ? [{ ...row, values: row.result.values }] : []));
+interface OutputPreview {
+  format: RotkiFormat;
+  title: string;
+  columns: readonly RotkiColumn[];
+  rows: ConvertedPreviewRow[];
+}
+
+const converted = computed<ConvertedPreviewRow[]>(() => preview.value.rows.flatMap(row =>
+  row.result.kind === RowKind.converted ? [{ ...row, format: row.result.format, values: row.result.values }] : []));
+
+/** One table per rotki file the recipe writes, each with that file's columns. */
+const outputs = computed<OutputPreview[]>(() => {
+  const formats = outputFormats(recipe.value.format);
+  const titles: Record<RotkiFormat, string> = {
+    [RotkiFormat.trades]: t('step_preview.import.trades_title'),
+    [RotkiFormat.events]: t('step_preview.import.events_title'),
+  };
+  return formats.map(format => ({
+    format,
+    title: formats.length > 1 ? titles[format] : t('step_preview.import.title'),
+    columns: getRotkiColumns(format),
+    rows: converted.value.filter(row => row.format === format),
+  }));
+});
 
 const rejected = computed<(PreviewRow & { rejection: Rejection })[]>(() => preview.value.rows.flatMap(row =>
   row.result.kind === RowKind.rejected ? [{ ...row, rejection: row.result }] : []));
@@ -103,20 +129,25 @@ const skipped = computed<number>(() => preview.value.rows.filter(row => row.resu
         </ul>
       </section>
 
-      <section class="flex flex-col gap-2">
+      <section
+        v-for="output in outputs"
+        :key="output.format"
+        class="flex flex-col gap-2"
+        :data-testid="`preview-${output.format}`"
+      >
         <h2 class="font-semibold">
-          {{ t('step_preview.import.title') }}
+          {{ output.title }}
         </h2>
         <p
-          v-if="converted.length === 0"
+          v-if="output.rows.length === 0"
           class="rounded-md border border-rui-divider px-3 py-6 text-center text-sm text-rui-text-secondary"
         >
           {{ t('step_preview.import.nothing') }}
         </p>
         <ConvertedRows
           v-else
-          :columns="columns"
-          :rows="converted.slice(0, 20)"
+          :columns="output.columns"
+          :rows="output.rows.slice(0, 20)"
         />
       </section>
     </template>

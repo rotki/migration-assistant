@@ -7,7 +7,7 @@ import { type Recipe, serializeRecipe } from './recipe';
 import { RecipeError } from './row-converter';
 
 const recipe: Recipe = {
-  version: 1,
+  version: 2,
   name: '',
   input: { encoding: 'utf-8', delimiter: ',', headerIndex: 0 },
   format: RotkiFormat.trades,
@@ -21,7 +21,7 @@ function request(overrides: Record<string, unknown> = {}): Record<string, unknow
     type: 'start',
     file: new Blob(['a,b\n']),
     recipe: JSON.parse(serializeRecipe(recipe)),
-    outputName: 'converted.csv',
+    outputNames: { trades: 'trades.csv', events: 'events.csv' },
     rejectedName: 'rejected.csv',
     texts: englishTexts(),
     ...overrides,
@@ -43,9 +43,11 @@ describe('readStartConversion', () => {
     ['a string', 'start', MessageCode.requestNotObject],
     ['another type', request({ type: 'stop' }), MessageCode.requestUnknownType],
     ['no file', request({ file: 'data.csv' }), MessageCode.requestNoFile],
-    ['a path as output', request({ outputName: '../converted.csv' }), MessageCode.requestInvalidOutput],
+    ['a path as output', request({ outputNames: { trades: '../trades.csv', events: 'events.csv' } }), MessageCode.requestInvalidOutput],
+    ['a missing output name', request({ outputNames: { trades: 'trades.csv' } }), MessageCode.requestInvalidOutput],
     ['a non csv output', request({ rejectedName: 'rejected.txt' }), MessageCode.requestInvalidOutput],
-    ['one name for both outputs', request({ rejectedName: 'converted.csv' }), MessageCode.requestInvalidOutput],
+    ['one name for an output and the rejected rows', request({ rejectedName: 'trades.csv' }), MessageCode.requestInvalidOutput],
+    ['one name for both outputs', request({ outputNames: { trades: 'rows.csv', events: 'rows.csv' } }), MessageCode.requestInvalidOutput],
     ['no texts', request({ texts: undefined }), MessageCode.requestInvalidTexts],
     ['a missing reason text', request({ texts: { ...englishTexts(), reasons: missingReason } }), MessageCode.requestInvalidTexts],
     ['no recipe', request({ recipe: undefined }), MessageCode.notRecipe],
