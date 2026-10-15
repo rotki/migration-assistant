@@ -2,15 +2,24 @@
 import { buildLinks } from '@/modules/build-info';
 
 const { attestationsUrl, buildRunUrl, commitUrl, releaseUrl, repositoryUrl, shortSha, version } = buildLinks;
+
+const FIRST_YEAR = 2026;
+const buildYear = Number(import.meta.env.VITE_BUILD_YEAR);
+const years = buildYear > FIRST_YEAR ? `${FIRST_YEAR}-${buildYear}` : String(FIRST_YEAR);
 </script>
 
 <template>
   <footer class="border-t border-rui-divider bg-rui-surface text-sm text-rui-text-secondary">
     <div class="max-w-5xl mx-auto px-4 py-6 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-      <p>
-        Your files never leave this page. It has no server to send them to, and its
-        content security policy blocks every network request.
-      </p>
+      <div class="flex flex-col gap-1">
+        <p>
+          Your files never leave this page. It has no server to send them to, and its
+          content security policy blocks every network request.
+        </p>
+        <p data-testid="copyright">
+          © Rotki Solutions GmbH {{ years }}.
+        </p>
+      </div>
       <nav
         class="flex flex-wrap items-center gap-x-4 gap-y-1 shrink-0 whitespace-nowrap"
         aria-label="Source and deployment"
