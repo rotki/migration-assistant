@@ -16,7 +16,7 @@ export default rotki({
   },
 
   slop: true,
-  sonarjs: true,
+  sonarjs: { cognitiveComplexity: 15 },
   markdown: true,
   formatters: true,
 }, {
