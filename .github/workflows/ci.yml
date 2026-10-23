@@ -147,6 +147,12 @@ jobs:
     timeout-minutes: 15
     permissions:
       contents: read
+    # Browsers and their system libraries come with the image, so no apt mirror sits on the path.
+    # Keep the tag on the @playwright/test version: each release only drives its own browser builds.
+    container:
+      image: mcr.microsoft.com/playwright:v1.64.0-noble@sha256:06a9939e57531807f8d5fd76ce44b53165ffb7d7501d87ab10e285c20b1e971f
+      # The runner's uid, which owns the workspace; Firefox refuses a root user whose HOME is not its own.
+      options: --user 1001
     steps:
       - name: Checkout 🛎
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -165,11 +171,9 @@ jobs:
       - name: Install dependencies 👨🏻‍💻
         run: pnpm install --frozen-lockfile
 
-      - name: Install browsers
-        run: pnpm exec playwright install --with-deps chromium firefox
-
       - name: Build
         run: pnpm run build
 
       - name: Privacy checks
+        timeout-minutes: 5
         run: pnpm run test:e2e

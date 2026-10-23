@@ -41,6 +41,11 @@
       "enabled": false
     },
     {
+      "description": "The e2e container image carries the browser builds of one @playwright/test release",
+      "groupName": "playwright",
+      "matchPackageNames": ["@playwright/test", "mcr.microsoft.com/playwright"]
+    },
+    {
       "groupName": "tailwindcss",
       "matchPackageNames": ["tailwindcss", "@tailwindcss/vite"]
     },
