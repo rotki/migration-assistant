@@ -55,6 +55,6 @@ describe('detectHeaderIndex', () => {
 
 describe('normalizeHeader', () => {
   it('names empty and repeated columns', () => {
-    expect(normalizeHeader(['﻿Date ', '', 'Amount', 'Amount'])).toEqual(['Date', 'Column 2', 'Amount', 'Amount (2)']);
+    expect(normalizeHeader(['\u{FEFF}Date ', '', 'Amount', 'Amount'])).toEqual(['Date', 'Column 2', 'Amount', 'Amount (2)']);
   });
 });

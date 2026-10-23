@@ -57,7 +57,7 @@ function githubSource(ref: string): Source {
     list: async (dir) => {
       const entries: unknown = await (await get(`https://api.github.com/repos/rotki/rotki/contents/${dir}?ref=${ref}`)).json();
       if (!Array.isArray(entries))
-        throw new Error(`GitHub listed no files in ${dir} at ${ref}.`);
+        throw new TypeError(`GitHub listed no files in ${dir} at ${ref}.`);
       return entries.flatMap(entry => (typeof entry?.path === 'string' ? [entry.path] : []));
     },
   };

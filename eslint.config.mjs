@@ -1,9 +1,5 @@
 import rotki from '@rotki/eslint-config';
 
-// vue-i18n require()s these while eslint composes configs; warming them avoids ERR_REQUIRE_ESM_RACE_CONDITION.
-import 'jsonc-eslint-parser';
-import 'yaml-eslint-parser';
-
 export default rotki({
   vue: true,
   typescript: {
@@ -41,6 +37,12 @@ export default rotki({
   files: ['src/**/*.ts'],
   rules: {
     '@typescript-eslint/explicit-function-return-type': 'error',
+  },
+}, {
+  // Iterator helpers are ES2025, newer than Vite's default browser target, and the build does not polyfill them.
+  files: ['src/**/*.{ts,vue}'],
+  rules: {
+    'unicorn/prefer-iterator-helpers': 'off',
   },
 }, {
   // Vite 8 loads configs natively and warns on extensionless relative imports.

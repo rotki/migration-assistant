@@ -44,8 +44,8 @@
     "@intlify/eslint-plugin-vue-i18n": "4.5.1",
     "@intlify/unplugin-vue-i18n": "11.2.5",
     "@playwright/test": "1.64.0",
-    "@rotki/eslint-config": "8.3.0",
-    "@rotki/eslint-plugin": "1.8.0",
+    "@rotki/eslint-config": "8.4.1",
+    "@rotki/eslint-plugin": "1.10.0",
     "@tailwindcss/vite": "4.3.3",
     "@types/node": "24.19.1",
     "@vitejs/plugin-vue": "6.0.9",
@@ -59,15 +59,13 @@
     "fast-glob": "3.3.3",
     "happy-dom": "20.14.5",
     "husky": "9.1.7",
-    "jsonc-eslint-parser": "3.3.0",
     "lint-staged": "17.6.0",
     "tailwindcss": "4.3.3",
     "typescript": "6.0.3",
     "vite": "8.3.3",
     "vite-ssg": "28.3.0",
     "vitest": "5.0.3",
-    "vue-tsc": "3.3.12",
-    "yaml-eslint-parser": "2.1.0"
+    "vue-tsc": "3.3.12"
   },
   "engines": {
     "node": ">=24 <25",
