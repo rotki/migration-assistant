@@ -8,6 +8,8 @@ minimumReleaseAgeExclude:
   - '@rotki/ui-library'
   - '@rotki/eslint-config'
   - '@rotki/eslint-plugin'
+  # Renovate security update: happy-dom@21.0.4
+  - happy-dom@21.0.4
 
 trustPolicy: no-downgrade
 shellEmulator: true
