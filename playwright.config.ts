@@ -15,6 +15,8 @@ export default defineConfig({
   use: {
     baseURL: `http://localhost:${PORT}/migration-assistant/`,
     trace: 'retain-on-failure',
+    // Playwright starts Chromium without its sandbox unless told otherwise; CI containers cannot run it.
+    launchOptions: { chromiumSandbox: !process.env.CI },
   },
   projects: [
     { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
