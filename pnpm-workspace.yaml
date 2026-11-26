@@ -8,6 +8,8 @@ minimumReleaseAgeExclude:
   - '@rotki/ui-library'
   - '@rotki/eslint-config'
   - '@rotki/eslint-plugin'
+  # Renovate security update: vue-i18n@11.4.14
+  - vue-i18n@11.4.14
 
 trustPolicy: no-downgrade
 shellEmulator: true
