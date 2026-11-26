@@ -8,7 +8,10 @@
     "helpers:pinGitHubActionDigests"
   ],
   "description": "Mirror the pnpm-workspace.yaml minimumReleaseAge: 10080 (7 days) cooldown so the dashboard does not surface updates that a local install would reject.",
-  "dependencyDashboardAutoclose": false,
+  "dependencyDashboard": {
+    "enabled": true,
+    "autoclose": false
+  },
   "minimumReleaseAge": "7 days",
   "packageRules": [
     {
