@@ -27,7 +27,7 @@
     "prepare": "husky"
   },
   "dependencies": {
-    "@rotki/ui-library": "3.4.1",
+    "@rotki/ui-library": "3.5.0",
     "@unhead/vue": "2.1.17",
     "@vueuse/core": "14.4.0",
     "dayjs": "1.11.23",
