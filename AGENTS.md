@@ -217,7 +217,9 @@ These live in GitHub, not in the repository. Keep this list current when they ch
     `analyze (javascript-typescript)` checks. Organization admins can bypass it.
   - `main history`: no deletion, no force pushes, linear history.
   - `release tags` (`v*`): no deletion, update or force push.
-  - `tag protection` (all tags): no deletion or force push, and tag creation is restricted.
+  - `tag protection` (every tag except `v*`): no deletion or force push, and no creation. Since
+    `v*` is excluded, the release workflow can create release tags, which `release tags` then
+    keeps from moving.
 - The `github-pages` environment accepts deployments from `main` only and requires approval from a
   required reviewer.
 - `CODEOWNERS` assigns everything to `@rotki/maintainers`, which has write access.
