@@ -171,8 +171,16 @@ jobs:
           gh api "repos/$REPOSITORY/git/refs" -f "ref=refs/tags/$TAG" -f "sha=$GITHUB_SHA" > /dev/null
           git tag "$TAG" "$GITHUB_SHA"
 
+      # The repository has immutable releases: a published release accepts no new assets. So the
+      # notes go into a draft, the tarball is attached to the draft, and only then is it published.
+      # changelogithub's own --assets only logs a failed upload; gh release upload fails the job.
       - name: Publish release notes
         env:
           TAG: ${{ needs.prepare.outputs.tag }}
           GITHUB_TOKEN: ${{ github.token }}
-        run: pnpm exec changelogithub --to "$TAG" --assets "migration-assistant-$TAG.tar.gz"
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          pnpm exec changelogithub --to "$TAG" --draft
+          gh release upload "$TAG" "migration-assistant-$TAG.tar.gz" --repo "$REPOSITORY"
+          gh release edit "$TAG" --draft=false --latest --repo "$REPOSITORY"

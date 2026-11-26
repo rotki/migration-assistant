@@ -35,13 +35,16 @@ combination, which the wizard then shows as it is.
 
 The footer of the live page links the release it belongs to, the commit it was built from
 and the GitHub Actions run that built it. Every deployed HTML, JavaScript and CSS file, and
-the site tarball attached to each release, carries a build provenance attestation, which you
-can check against this repository:
+the site tarball attached to each release from v0.1.2 on, carries a build provenance
+attestation, which you can check against this repository:
 
 ```bash
 gh attestation verify index.html --repo rotki/migration-assistant
-gh attestation verify migration-assistant-v0.1.0.tar.gz --repo rotki/migration-assistant
+gh attestation verify migration-assistant-v0.1.2.tar.gz --repo rotki/migration-assistant
 ```
+
+Releases v0.1.0 and v0.1.1 have no tarball: the upload failed on the repository's immutable
+releases, and a published immutable release cannot gain assets afterwards.
 
 The deployment ships source maps, so the browser's developer tools show the deployed code as
 the source files in this repository.
