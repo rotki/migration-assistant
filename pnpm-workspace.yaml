@@ -14,5 +14,10 @@ shellEmulator: true
 strictDepBuilds: true
 saveExact: true
 
+overrides:
+  # oxfmt 0.35, which eslint-plugin-format caps @rotki/eslint-config at, pins tinypool 2.1.0
+  # (GHSA advisories fixed in 2.1.2). Remove once eslint-plugin-format moves to a newer oxfmt.
+  oxfmt>tinypool: 2.2.0
+
 allowBuilds:
   esbuild: true
