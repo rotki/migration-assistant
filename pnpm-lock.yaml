@@ -179,8 +179,8 @@ importers:
   .:
     dependencies:
       '@rotki/ui-library':
-        specifier: 3.5.0
-        version: 3.5.0(dayjs@1.11.23)(vue-router@5.5.1(@vue/compiler-sfc@3.5.45)(rolldown@1.2.19)(vite@8.3.8(@types/node@24.19.2)(jiti@2.7.0)(terser@5.51.2)(yaml@2.9.1))(vue@3.5.45(typescript@6.0.3)))(vue@3.5.45(typescript@6.0.3))
+        specifier: 3.5.1
+        version: 3.5.1(dayjs@1.11.23)(vue-router@5.5.1(@vue/compiler-sfc@3.5.45)(rolldown@1.2.19)(vite@8.3.8(@types/node@24.19.2)(jiti@2.7.0)(terser@5.51.2)(yaml@2.9.1))(vue@3.5.45(typescript@6.0.3)))(vue@3.5.45(typescript@6.0.3))
       '@unhead/vue':
         specifier: 2.1.17
         version: 2.1.17(vue@3.5.45(typescript@6.0.3))
@@ -1248,8 +1248,8 @@ packages:
     peerDependencies:
       eslint: ^9.20.0 || ^10.0.0
 
-  '@rotki/ui-library@3.5.0':
-    resolution: {integrity: sha512-n1gNuQxMsWpiuryPhCRzWeTmRQv+Snv4R3nxNL2YuuRXw4+uIX+0DLin3YP7R8SiHCLPnsURrNmfWskJVJelnA==}
+  '@rotki/ui-library@3.5.1':
+    resolution: {integrity: sha512-QegI1kp8NVczh5ZtQMooKBO1fGxPuQ1AgITffff2tAFuosBKHNY1n6I6g3rG2+sQNscFgv/W8qwvC1PkJlhwKQ==}
     engines: {node: '>=24 <25', pnpm: '>=11 <13'}
     peerDependencies:
       dayjs: '>=1.11.13 <12'
@@ -4991,7 +4991,7 @@ snapshots:
       - supports-color
       - typescript
 
-  '@rotki/ui-library@3.5.0(dayjs@1.11.23)(vue-router@5.5.1(@vue/compiler-sfc@3.5.45)(rolldown@1.2.19)(vite@8.3.8(@types/node@24.19.2)(jiti@2.7.0)(terser@5.51.2)(yaml@2.9.1))(vue@3.5.45(typescript@6.0.3)))(vue@3.5.45(typescript@6.0.3))':
+  '@rotki/ui-library@3.5.1(dayjs@1.11.23)(vue-router@5.5.1(@vue/compiler-sfc@3.5.45)(rolldown@1.2.19)(vite@8.3.8(@types/node@24.19.2)(jiti@2.7.0)(terser@5.51.2)(yaml@2.9.1))(vue@3.5.45(typescript@6.0.3)))(vue@3.5.45(typescript@6.0.3))':
     dependencies:
       '@floating-ui/dom': 1.8.0
       dayjs: 1.11.23
